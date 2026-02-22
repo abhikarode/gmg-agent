@@ -25,3 +25,12 @@ almashines_data.json
 # OS
 .DS_Store
 Thumbs.db
+
+# Node
+node_modules/
+.next/
+out/
+build/
+
+# Next.js
+next-env.d.ts
