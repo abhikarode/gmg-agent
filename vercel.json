@@ -2,14 +2,14 @@
   "version": 2,
   "builds": [
     {
-      "src": "ai_agent.py",
-      "use": "@vercel/python"
+      "src": "gmg-ui/package.json",
+      "use": "@vercel/next"
     }
   ],
   "routes": [
     {
-      "src": "/api/chat",
-      "dest": "ai_agent.py"
+      "src": "/(.*)",
+      "dest": "/gmg-ui/$1"
     }
   ]
 }
