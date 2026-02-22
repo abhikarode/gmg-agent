@@ -2,14 +2,14 @@
   "version": 2,
   "builds": [
     {
-      "src": "gmg-ui/package.json",
+      "src": "package.json",
       "use": "@vercel/next"
     }
   ],
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "/gmg-ui/$1"
+      "dest": "/$1"
     }
   ]
 }

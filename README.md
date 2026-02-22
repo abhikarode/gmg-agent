@@ -1,118 +1,67 @@
-# Garje Marathi AI Agent
+# Garje Marathi AI UI
 
-AI Assistant for the Garje Marathi Community - connecting members, jobs, and community information.
+Next.js chat interface for the Garje Marathi Community AI.
 
-## Features
-
-- **Natural Language Queries** - Ask about members, jobs, and community info
-- **Local LLM Inference** - Uses Ollama for privacy and control
-- **RESTful API** - FastAPI interface for web integration
-- **Vercel Ready** - Deploy as serverless function
-- **Docker Support** - Containerized deployment
-
-## Quick Start
-
-### Prerequisites
-
-- Python 3.11+
-- Ollama installed and running
-- Ollama model (mistral or glm-4.7-flash)
-
-### Installation
+## Setup
 
 ```bash
-# Clone or download this repository
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Pull Ollama model (if not already installed)
-ollama pull mistral
-
-# Run the agent
-python ai_agent.py
+npm install
+npm run dev
 ```
 
-### Running the API Server
+## Environment Variables
 
-```bash
-# Install FastAPI dependencies
-pip install fastapi uvicorn
+Create `.env.local`:
 
-# Run the API server
-python api.py
-
-# Or use Docker
-docker-compose up --build
+```env
+NEXT_PUBLIC_API_URL=http://localhost:8000/api
 ```
 
-## API Usage
+For production, set this to your ngrok or Cloudflare Tunnel URL.
 
-### Chat Endpoint
+## Deployment
 
-```bash
-curl -X POST http://localhost:8080/api/chat \
-  -H "Content-Type: application/json" \
-  -d '{"message": "Find member John", "model": "mistral"}'
-```
-
-### Vercel Deployment
-
-1. Push this repository to GitHub
+1. Push to GitHub
 2. Import to Vercel
-3. The `vercel.json` config handles the deployment
-4. Environment variables are loaded from `.env`
+3. Set environment variable `NEXT_PUBLIC_API_URL` to your tunnel URL
+4. Deploy
+
+## Tunnel Setup
+
+### Using ngrok
+
+```bash
+# Install ngrok (if not installed)
+brew install ngrok
+
+# Configure with your account
+ngrok config add-authtoken YOUR_AUTHTOKEN
+
+# Start tunnel to local API
+ngrok http 8000
+```
+
+Set `NEXT_PUBLIC_API_URL` to the ngrok URL (e.g., `https://abc123.ngrok.io`).
+
+### Using Cloudflare Tunnel
+
+```bash
+# Install cloudflared
+brew install cloudflared
+
+# Login to Cloudflare
+cloudflared tunnel login
+
+# Create tunnel
+cloudflared tunnel create gmg-agent
+
+# Run tunnel
+cloudflared tunnel run gmg-agent
+```
 
 ## Query Examples
 
-```
-- "Find member John"
-- "Search member software engineer"
+- "Find member Anand"
 - "Show me jobs"
-- "Find job developer"
 - "How many members?"
-- "What is Garje Marathi?"
-- "List jobs in Mumbai"
-```
-
-## Project Structure
-
-```
-├── ai_agent.py      # Core AI agent with Ollama integration
-├── api.py           # FastAPI REST interface
-├── almashines_data.json  # Community data
-├── main.py          # Legacy entry point
-├── vercel.json      # Vercel deployment config
-├── Dockerfile       # Container configuration
-├── docker-compose.yml  # Docker setup
-└── requirements.txt # Python dependencies
-```
-
-## Configuration
-
-### Environment Variables
-
-Create a `.env` file with:
-
-```env
-ALMASHINES_API_KEY=your_api_key
-ALMASHINES_API_SECRET=your_api_secret
-OLLAMA_MODEL=mistral
-```
-
-## Development
-
-```bash
-# Run tests
-pytest
-
-# Lint
-flake8
-
-# Type check
-mypy .
-```
-
-## License
-
-MIT License
+- "Tell me about the community"
