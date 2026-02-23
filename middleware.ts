@@ -5,7 +5,7 @@ export default auth((req: { auth: { user?: { id: string } } | null; nextUrl: { p
   const isOnChat = req.nextUrl.pathname.startsWith("/");
 
   if (isOnChat && !isLoggedIn) {
-    const newUrl = new URL("/login", "http://localhost:3000");
+    const newUrl = new URL("/login", req.nextUrl.origin);
     return Response.redirect(newUrl);
   }
 });
