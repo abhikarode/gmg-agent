@@ -71,12 +71,8 @@ export default function ChatPage() {
       {/* Header */}
       <header className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-bold text-indigo-900 flex items-center gap-2">
-              <img src="/logo.png" alt="Garje Marathi" className="h-8 w-8" />
-              Garje Marathi AI
-            </h1>
-            <p className="text-sm text-gray-600">Community Assistant</p>
+          <div className="w-full">
+            <img src="/logo.png" alt="Garje Marathi" className="w-full h-auto max-h-16 object-contain" />
           </div>
           <button
             onClick={handleClear}
@@ -173,7 +169,7 @@ export default function ChatPage() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder="Ask about members, jobs, or the community..."
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-gray-900 placeholder:text-gray-500"
                 disabled={isLoading}
               />
               <button
