@@ -8,18 +8,6 @@ const handler = NextAuth({
       clientSecret: process.env.GITHUB_CLIENT_SECRET!,
     }),
   ],
-  callbacks: {
-    async authorized({ auth, request: { nextUrl } }) {
-      const isLoggedIn = !!auth?.user;
-      const isOnChat = nextUrl.pathname.startsWith("/");
-
-      if (isOnChat) {
-        return isLoggedIn;
-      }
-
-      return true;
-    },
-  },
   pages: {
     signIn: "/login",
   },
