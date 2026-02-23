@@ -63,7 +63,10 @@ export default function ChatPage() {
       <header className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-bold text-indigo-900">Garje Marathi AI</h1>
+            <h1 className="text-2xl font-bold text-indigo-900 flex items-center gap-2">
+              <img src="/logo.png" alt="Garje Marathi" className="h-8 w-8" />
+              Garje Marathi AI
+            </h1>
             <p className="text-sm text-gray-600">Community Assistant</p>
           </div>
           <button
