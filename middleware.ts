@@ -1,7 +1,7 @@
 import { auth } from "./auth";
 
-export default auth((req: { auth: { user?: { id: string } } | null; nextUrl: URL }) => {
-  const isLoggedIn = !!req.auth?.user;
+export default auth((req) => {
+  const isLoggedIn = !!req.auth;
   const isOnChat = req.nextUrl.pathname.startsWith("/");
 
   if (isOnChat && !isLoggedIn) {
