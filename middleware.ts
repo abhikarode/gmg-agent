@@ -1,11 +1,11 @@
 import { auth } from "./auth";
 
-export default auth((req) => {
-  const isLoggedIn = !!req.auth;
+export default auth((req: { auth: { user?: { id: string } } | null; nextUrl: { pathname: string } }) => {
+  const isLoggedIn = !!req.auth?.user;
   const isOnChat = req.nextUrl.pathname.startsWith("/");
 
   if (isOnChat && !isLoggedIn) {
-    const newUrl = new URL("/login", req.nextUrl);
+    const newUrl = new URL("/login", "http://localhost:3000");
     return Response.redirect(newUrl);
   }
 });
