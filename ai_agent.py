@@ -31,6 +31,8 @@ logger = logging.getLogger(__name__)
 
 class ModelType(str, Enum):
     """Available Ollama models"""
+    GEMMA4_26B = "gemma4:26b"
+    GEMMA4_31B = "gemma4:31b"
     MISTRAL = "mistral"
     GLM = "glm-4.7-flash"
 
@@ -250,7 +252,7 @@ class DataStore:
 class AIAgent:
     """Main AI Agent for Garje Marathi Community"""
     
-    def __init__(self, model: ModelType = ModelType.MISTRAL):
+    def __init__(self, model: ModelType = ModelType.GEMMA4_26B):
         self.model = model
         self.data_store = DataStore()
         self.scraper = WebsiteScraper()
@@ -267,18 +269,20 @@ class AIAgent:
             models = ollama.list()
             available = [m["name"].split(":")[0] for m in models.get("models", [])]
             
-            # Prefer mistral, fallback to glm
+            # Prefer gemma4:26b, then gemma4:31b, then mistral, fallback to glm
+            if "gemma4" in available:
+                return "gemma4:26b"
             if "mistral" in available:
                 return "mistral"
             if "glm-4.7-flash" in available:
                 return "glm-4.7-flash"
             
             logger.warning(f"No suitable model found. Available: {available}")
-            return available[0] if available else "mistral"
+            return available[0] if available else "gemma4:26b"
             
         except Exception as e:
             logger.error(f"Failed to get available models: {e}")
-            return "mistral"
+            return "gemma4:26b"
     
     def _call_llm(self, prompt: str) -> str:
         """Call Ollama LLM with the given prompt"""
