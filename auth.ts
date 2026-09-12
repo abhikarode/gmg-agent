@@ -24,6 +24,7 @@ const githubProvider = {
   // GitHub's built-in definition omits this metadata, which causes the
   // callback to fail with "issuer must be configured on the issuer".
   issuer: "https://github.com/login/oauth",
+  token: { url: "https://github.com/login/oauth/access_token" },
 };
 
 const providers = [
