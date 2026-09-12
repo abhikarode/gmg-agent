@@ -23,7 +23,7 @@ const githubProvider = {
   // next-auth 4.x builds an openid-client Issuer for every OAuth provider.
   // GitHub's built-in definition omits this metadata, which causes the
   // callback to fail with "issuer must be configured on the issuer".
-  issuer: "https://github.com",
+  issuer: "https://github.com/login/oauth",
 };
 
 const providers = [
