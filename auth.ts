@@ -26,7 +26,7 @@ const githubProvider: OAuthConfig<GithubProfile> = {
   // callback to fail with "issuer must be configured on the issuer".
   issuer: "https://github.com/login/oauth",
   token: {
-    async request({ params }) {
+    async request({ params, provider }) {
       const response = await fetch("https://github.com/login/oauth/access_token", {
         method: "POST",
         headers: {
@@ -37,12 +37,13 @@ const githubProvider: OAuthConfig<GithubProfile> = {
           client_id: process.env.GITHUB_CLIENT_ID!,
           client_secret: process.env.GITHUB_CLIENT_SECRET!,
           code: String(params.code),
+          redirect_uri: provider.callbackUrl,
         }),
       });
 
       const tokens = await response.json();
       if (!response.ok || !tokens.access_token) {
-        throw new Error("GitHub token exchange failed");
+        throw new Error(`GitHub token exchange failed: ${tokens.error ?? response.status}`);
       }
       return { tokens };
     },
