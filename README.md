@@ -65,3 +65,25 @@ cloudflared tunnel run gmg-agent
 - "Show me jobs"
 - "How many members?"
 - "Tell me about the community"
+
+## Refreshing the member index
+
+The source snapshot is intentionally refreshed outside the web request path. Load the credentials from `.env.local` and run:
+
+```bash
+python3 refresh_data.py
+```
+
+The API reads the refreshed `almashines_data.json` when it starts. The latest verified refresh produced 5,132 members and 36 jobs.
+
+## Ollama profiles
+
+The API accepts `auto`, `fast`, `balanced`, or `quality`. `auto` chooses the best installed model, preferring `gemma4:26b`, then `gemma4:12b`, then `gemma4:31b`. Override with `OLLAMA_MODEL` when needed. The UI uses `auto`.
+
+## Login providers
+
+GitHub remains available. LinkedIn federation uses LinkedIn OpenID Connect and is enabled only when `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET`, and `NEXT_PUBLIC_LINKEDIN_ENABLED=true` are configured. Register the exact NextAuth callback URL in LinkedIn Developer Portal:
+
+```text
+https://YOUR_UI_DOMAIN/api/auth/callback/linkedin
+```
