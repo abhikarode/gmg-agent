@@ -15,11 +15,19 @@ const LinkedInOIDC = (options: { clientId: string; clientSecret: string }) => ({
   options,
 });
 
-const providers = [
-  GitHub({
+const githubProvider = {
+  ...GitHub({
     clientId: process.env.GITHUB_CLIENT_ID!,
     clientSecret: process.env.GITHUB_CLIENT_SECRET!,
   }),
+  // next-auth 4.x builds an openid-client Issuer for every OAuth provider.
+  // GitHub's built-in definition omits this metadata, which causes the
+  // callback to fail with "issuer must be configured on the issuer".
+  issuer: "https://github.com",
+};
+
+const providers = [
+  githubProvider,
   ...(process.env.LINKEDIN_CLIENT_ID && process.env.LINKEDIN_CLIENT_SECRET
     ? [
         LinkedInOIDC({
