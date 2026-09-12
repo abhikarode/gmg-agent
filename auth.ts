@@ -1,5 +1,6 @@
 import NextAuth from "next-auth";
-import GitHub from "next-auth/providers/github";
+import GitHub, { type GithubProfile } from "next-auth/providers/github";
+import type { OAuthConfig } from "next-auth/providers/oauth";
 
 const LinkedInOIDC = (options: { clientId: string; clientSecret: string }) => ({
   id: "linkedin",
@@ -15,7 +16,7 @@ const LinkedInOIDC = (options: { clientId: string; clientSecret: string }) => ({
   options,
 });
 
-const githubProvider = {
+const githubProvider: OAuthConfig<GithubProfile> = {
   ...GitHub({
     clientId: process.env.GITHUB_CLIENT_ID!,
     clientSecret: process.env.GITHUB_CLIENT_SECRET!,
@@ -24,7 +25,28 @@ const githubProvider = {
   // GitHub's built-in definition omits this metadata, which causes the
   // callback to fail with "issuer must be configured on the issuer".
   issuer: "https://github.com/login/oauth",
-  token: { url: "https://github.com/login/oauth/access_token" },
+  token: {
+    async request({ params }) {
+      const response = await fetch("https://github.com/login/oauth/access_token", {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams({
+          client_id: process.env.GITHUB_CLIENT_ID!,
+          client_secret: process.env.GITHUB_CLIENT_SECRET!,
+          code: String(params.code),
+        }),
+      });
+
+      const tokens = await response.json();
+      if (!response.ok || !tokens.access_token) {
+        throw new Error("GitHub token exchange failed");
+      }
+      return { tokens };
+    },
+  },
 };
 
 const providers = [
