@@ -1,0 +1,135 @@
+#!/usr/bin/python3
+"""Execute a project's deterministic Codex verification manifest."""
+
+from __future__ import annotations
+
+import argparse
+import datetime as dt
+import hashlib
+import importlib.util
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+from typing import Any
+
+
+CODEX_HOME = Path(__file__).resolve().parents[1]
+HOOK_PATH = CODEX_HOME / "hooks" / "evidence_gate.py"
+
+
+def load_hook_module():
+    spec = importlib.util.spec_from_file_location("codex_global_evidence_gate", HOOK_PATH)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"Cannot load {HOOK_PATH}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--session-id")
+    parser.add_argument("--ci", action="store_true")
+    parser.add_argument("--project", default=".")
+    return parser.parse_args()
+
+
+def resolve_session_id(project: Path, explicit: str | None) -> str:
+    if explicit:
+        return explicit
+    environment = os.environ.get("CODEX_SESSION_ID")
+    if environment:
+        return environment
+    evidence = project / ".codex" / "evidence"
+    candidates = sorted(
+        evidence.glob("*.session.json"), key=lambda path: path.stat().st_mtime, reverse=True,
+    ) if evidence.is_dir() else []
+    if candidates:
+        return candidates[0].name.removesuffix(".session.json")
+    raise SystemExit("No active session found. Pass --session-id <id>.")
+
+
+def main() -> int:
+    args = parse_args()
+    project = Path(args.project).resolve()
+    manifest_path = project / ".codex" / "verification.json"
+    if not manifest_path.is_file():
+        raise SystemExit(f"Missing {manifest_path}; run {CODEX_HOME}/bin/codex-discipline-init")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    checks = manifest.get("checks")
+    if not isinstance(checks, list) or not checks:
+        raise SystemExit("verification.json must contain a non-empty checks array")
+    session_id = "ci" if args.ci else resolve_session_id(project, args.session_id)
+    evidence_dir = project / ".codex" / "evidence"
+    logs_dir = evidence_dir / "logs" / session_id
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    results: list[dict[str, Any]] = []
+    started = dt.datetime.now(dt.timezone.utc)
+    failed = False
+    for check in checks:
+        check_id = check.get("id")
+        command = check.get("command")
+        if not isinstance(check_id, str) or not check_id or not (
+            isinstance(command, list) and command and all(isinstance(item, str) for item in command)
+        ):
+            raise SystemExit("Each check requires a non-empty id and command string array")
+        if args.ci and check.get("run_in_ci", True) is False:
+            results.append({
+                "id": check_id,
+                "command": command,
+                "result": "SKIP",
+                "exit_code": None,
+                "reason": "run_in_ci is false",
+            })
+            print(f"[SKIP] {check_id}: local runtime check")
+            continue
+        timeout = int(check.get("timeout_seconds", 1200))
+        check_started = dt.datetime.now(dt.timezone.utc)
+        try:
+            process = subprocess.run(
+                command, cwd=project, text=True, stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT, timeout=timeout, check=False,
+            )
+            output = process.stdout
+            exit_code = process.returncode
+        except subprocess.TimeoutExpired as exc:
+            output = (exc.stdout or "") + f"\nTimed out after {timeout} seconds.\n"
+            exit_code = 124
+        log_path = logs_dir / f"{check_id}.log"
+        log_path.write_text(output, encoding="utf-8")
+        log_hash = hashlib.sha256(log_path.read_bytes()).hexdigest()
+        result = "PASS" if exit_code == 0 else "FAIL"
+        results.append({
+            "id": check_id,
+            "command": command,
+            "result": result,
+            "exit_code": exit_code,
+            "started_at": check_started.isoformat(),
+            "finished_at": dt.datetime.now(dt.timezone.utc).isoformat(),
+            "log_path": str(log_path.relative_to(project)),
+            "log_sha256": log_hash,
+        })
+        print(f"[{result}] {check_id}: {' '.join(command)}")
+        failed = failed or (check.get("required", True) and exit_code != 0)
+    hook = load_hook_module()
+    report = {
+        "schema_version": 1,
+        "session_id": session_id,
+        "started_at": started.isoformat(),
+        "finished_at": dt.datetime.now(dt.timezone.utc).isoformat(),
+        "manifest_sha256": hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
+        "project_fingerprint": hook.project_fingerprint(project),
+        "checks": results,
+    }
+    report_path = evidence_dir / (
+        "ci-verification.json" if args.ci else f"{hook.safe_id(session_id)}.verification.json"
+    )
+    report_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    print(f"Report: {report_path}")
+    return 1 if failed else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

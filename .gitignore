@@ -34,3 +34,8 @@ build/
 
 # Next.js
 next-env.d.ts
+
+# Local agent/browser verification artifacts
+.codex/evidence/
+.playwright-mcp/
+tsconfig.tsbuildinfo

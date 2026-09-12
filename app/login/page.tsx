@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
-  const router = useRouter();
+  const linkedinEnabled = process.env.NEXT_PUBLIC_LINKEDIN_ENABLED === "true";
 
   const handleGitHubLogin = async () => {
     setIsLoading(true);
@@ -17,7 +17,7 @@ export default function LoginPage() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center">
         <div className="mb-6">
-          <img src="/logo.png" alt="Garje Marathi" className="h-16 w-16 mx-auto" />
+          <Image src="/logo.png" alt="Garje Marathi" width={64} height={64} className="h-16 w-16 mx-auto" />
           <h1 className="text-3xl font-bold text-indigo-900 mt-4">Garje Marathi AI</h1>
           <p className="text-gray-600 mt-2">Community Assistant</p>
         </div>
@@ -37,6 +37,15 @@ export default function LoginPage() {
             </svg>
             Sign in with GitHub
           </button>
+          {linkedinEnabled && (
+            <button
+              onClick={() => signIn("linkedin", { callbackUrl: "/" })}
+              disabled={isLoading}
+              className="w-full border border-gray-300 text-gray-900 py-3 px-4 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+            >
+              Continue with LinkedIn
+            </button>
+          )}
         </div>
 
         <p className="text-xs text-gray-500 mt-6">

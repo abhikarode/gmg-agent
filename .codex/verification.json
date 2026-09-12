@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "checks": [
+    {
+      "id": "lint",
+      "command": [
+        "npm",
+        "run",
+        "lint"
+      ],
+      "required": true,
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "build",
+      "command": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "required": true,
+      "timeout_seconds": 1200
+    }
+  ]
+}

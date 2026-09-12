@@ -16,6 +16,7 @@ Key features:
 import json
 import logging
 import os
+from functools import lru_cache
 from typing import Optional
 from dataclasses import dataclass
 from enum import Enum
@@ -35,6 +36,13 @@ class ModelType(str, Enum):
     GEMMA4_31B = "gemma4:31b"
     MISTRAL = "mistral"
     GLM = "glm-4.7-flash"
+
+
+MODEL_PROFILES = {
+    "fast": "gemma4:12b",
+    "balanced": "gemma4:26b",
+    "quality": "gemma4:31b",
+}
 
 
 @dataclass
@@ -252,8 +260,8 @@ class DataStore:
 class AIAgent:
     """Main AI Agent for Garje Marathi Community"""
     
-    def __init__(self, model: ModelType = ModelType.GEMMA4_26B):
-        self.model = model
+    def __init__(self, model: ModelType | str = "auto"):
+        self.model = self._resolve_model(model)
         self.data_store = DataStore()
         self.scraper = WebsiteScraper()
         self.community_info = self.scraper.scrape_homepage()
@@ -263,26 +271,50 @@ class AIAgent:
         logger.info(f"Community: {self.community_info.name}")
         logger.info(f"Stats: {self.data_store.get_stats()}")
     
+    @staticmethod
+    @lru_cache(maxsize=1)
+    def _available_models() -> tuple[str, ...]:
+        """Read installed Ollama model names once per process."""
+        try:
+            models = ollama.list().get("models", [])
+            return tuple(
+                model.get("name", "") for model in models if model.get("name")
+            )
+        except Exception as e:
+            logger.warning("Could not inspect Ollama models: %s", e)
+            return ()
+
+    @classmethod
+    def _resolve_model(cls, requested: ModelType | str) -> str:
+        """Choose the best installed model without making every request expensive."""
+        requested_name = str(requested)
+        if requested_name.startswith("ModelType."):
+            requested_name = requested.value  # type: ignore[union-attr]
+        if requested_name in MODEL_PROFILES:
+            requested_name = MODEL_PROFILES[requested_name]
+        if requested_name != "auto":
+            return requested_name
+
+        available = set(cls._available_models())
+        for candidate in (
+            os.getenv("OLLAMA_MODEL"),
+            MODEL_PROFILES["balanced"],
+            MODEL_PROFILES["fast"],
+            MODEL_PROFILES["quality"],
+            ModelType.GLM.value,
+            ModelType.MISTRAL.value,
+        ):
+            if candidate and candidate in available:
+                return candidate
+        return os.getenv("OLLAMA_MODEL", MODEL_PROFILES["fast"])
+
     def _get_available_model(self) -> str:
         """Get the best available Ollama model"""
         try:
-            models = ollama.list()
-            available = [m["name"].split(":")[0] for m in models.get("models", [])]
-            
-            # Prefer gemma4:26b, then gemma4:31b, then mistral, fallback to glm
-            if "gemma4" in available:
-                return "gemma4:26b"
-            if "mistral" in available:
-                return "mistral"
-            if "glm-4.7-flash" in available:
-                return "glm-4.7-flash"
-            
-            logger.warning(f"No suitable model found. Available: {available}")
-            return available[0] if available else "gemma4:26b"
-            
+            return self._resolve_model("auto")
         except Exception as e:
-            logger.error(f"Failed to get available models: {e}")
-            return "gemma4:26b"
+            logger.error("Failed to get available model: %s", e)
+            return MODEL_PROFILES["fast"]
     
     def _call_llm(self, prompt: str) -> str:
         """Call Ollama LLM with the given prompt"""
