@@ -5,7 +5,7 @@ import { signIn, signOut, useSession } from "next-auth/react";
 import axios from "axios";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
-const fallbackStats = [["5,132", "members"], ["36", "open roles"], ["2,478", "with photos"]];
+const fallbackStats = [["5,132", "Members"], ["36", "Open roles"], ["2,478", "With photos"]];
 
 export default function ChatPage() {
   const { data: session, status } = useSession();
@@ -18,7 +18,7 @@ export default function ChatPage() {
 
   useEffect(() => { if (status === "unauthenticated") signIn(); }, [status]);
   useEffect(() => {
-    axios.get(`${API_URL}/stats`).then(({ data }) => setStats([[data.total_users.toLocaleString(), "members"], [data.total_jobs.toLocaleString(), "open roles"], [data.users_with_profiles.toLocaleString(), "with photos"]])).catch(() => undefined);
+    axios.get(`${API_URL}/stats`).then(({ data }) => setStats([[data.total_users.toLocaleString(), "Members"], [data.total_jobs.toLocaleString(), "Open roles"], [data.users_with_profiles.toLocaleString(), "With photos"]])).catch(() => undefined);
   }, []);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, isLoading]);
 
@@ -34,28 +34,28 @@ export default function ChatPage() {
     finally { setIsLoading(false); }
   }
 
-  if (status === "loading") return <div className="loading-screen">Preparing your community desk…</div>;
+  if (status === "loading") return <div className="loading-screen">तुमचा Community desk तयार होत आहे…</div>;
 
   return <main className="app-shell">
     <aside className="side-rail">
       <div className="brand-mark"><span>ग</span><div>Garje<br /><em>Marathi</em></div></div>
       <div className="rail-rule" />
       <p className="rail-kicker">Community desk</p>
-      <p className="rail-copy">A living index of people, opportunities, and the connections between them.</p>
+      <p className="rail-copy">लोक, संधी आणि त्यांच्यातील connections शोधण्यासाठी तुमचा digital साथीदार.</p>
       <div className="rail-stats">{stats.map(([value, label]) => <div key={label}><strong>{value}</strong><span>{label}</span></div>)}</div>
-      <div className="rail-bottom"><span><i className="status-dot" /> Data refreshed today</span><button onClick={() => signOut({ callbackUrl: "/login" })}>Sign out</button></div>
+      <div className="rail-bottom"><span><i className="status-dot" /> Data आज refresh झाला</span><button onClick={() => signOut({ callbackUrl: "/login" })}>Sign out</button></div>
     </aside>
     <section className="chat-stage">
-      <header className="topbar"><div><span className="eyebrow">Ask the network</span><span className="live-pill">● Live index</span></div><div className="user-chip">{session?.user?.name || "Member"}</div></header>
+      <header className="topbar"><div><span className="eyebrow">Network ला विचारा</span><span className="live-pill">● Live index</span></div><div className="user-chip">{session?.user?.name || "Member"}</div></header>
       <div className="conversation">{messages.length === 0 ? <div className="welcome">
-        <p className="eyebrow">Namaskar</p><h1>Find the people<br /><i>who move things.</i></h1>
-        <p className="welcome-copy">Search the Garje Marathi network in plain language. Discover a member, a role, or the next useful introduction.</p>
-        <div className="prompt-grid">{["Find member Anand", "Show me jobs", "How many members?"].map((prompt) => <button key={prompt} onClick={() => ask(prompt)}>{prompt}<span>↗</span></button>)}</div>
+        <p className="eyebrow">नमस्कार</p><h1>योग्य लोक<br /><i>शोधा, पुढे चला.</i></h1>
+        <p className="welcome-copy">Garje Marathi network मध्ये सोप्या भाषेत Search करा. Member, job role किंवा तुमच्यासाठी योग्य introduction शोधा.</p>
+        <div className="prompt-grid">{["Anand member Search करा", "Jobs दाखवा", "किती Members आहेत?"].map((prompt) => <button key={prompt} onClick={() => ask(prompt)}>{prompt}<span>↗</span></button>)}</div>
       </div> : <div className="message-list">
         {messages.map((message, index) => <article className={`message ${message.role}`} key={`${message.role}-${index}`}><span className="message-label">{message.role === "user" ? "You" : "Garje AI"}</span><div>{message.content.split("\n").map((line, lineIndex) => <p key={lineIndex}>{line || " "}</p>)}</div></article>)}
         {isLoading && <article className="message assistant"><span className="message-label">Garje AI</span><div className="typing"><span /><span /><span /></div></article>}<div ref={endRef} />
       </div>}</div>
-      <div className="composer-wrap">{error && <p className="error-message">{error}</p>}<form className="composer" onSubmit={(event) => { event.preventDefault(); ask(); }}><label htmlFor="question">Your question</label><div><input id="question" value={input} onChange={(event) => setInput(event.target.value)} placeholder="Ask about members, roles, or opportunities…" disabled={isLoading} /><button type="submit" disabled={!input.trim() || isLoading}>Ask <span>↗</span></button></div></form><p className="composer-note">Answers draw from the latest member index · Ollama-assisted</p></div>
+      <div className="composer-wrap">{error && <p className="error-message">Community assistant ला थोडा वेळ लागतोय. कृपया पुन्हा प्रयत्न करा.</p>}<form className="composer" onSubmit={(event) => { event.preventDefault(); ask(); }}><label htmlFor="question">तुमचा प्रश्न · Your question</label><div><input id="question" value={input} onChange={(event) => setInput(event.target.value)} placeholder="Members, roles किंवा opportunities बद्दल विचारा…" disabled={isLoading} /><button type="submit" disabled={!input.trim() || isLoading}>Search <span>↗</span></button></div></form><p className="composer-note">Latest member index मधून उत्तरे · Ollama-assisted</p></div>
     </section>
   </main>;
 }
