@@ -475,22 +475,30 @@ Format your responses in markdown for better readability."""
             r"\b(?:jobs?|roles?|opportunities?)\s+(?:are\s+)?(?:available|open)\b",
             r"\bopen\s+roles?\b",
         ))
+        marathi_member_location = re.match(
+            r"^(.+?)\s+(?:मध्ये|मधे)\s+(?:कोणते|कोण|किती)?\s*(?:members?|सदस्य)",
+            message_lower,
+        )
         job_prefixes = ("find job", "search job", "show job", "list job")
         simple_member_lookup = (
             message_lower.startswith(("find ", "search ", "look for ", "look up "))
             and not message_lower.startswith(job_prefixes)
             and not job_request
         )
-        if not job_request and (simple_member_lookup or natural_member_request or any(phrase in message_lower for phrase in member_phrases)):
-            query = re.sub(
-                r"^(?:(?:can|could) you\s+|please\s+)?(?:find|search|look for|look up)(?:\s+for)?\s+(?:(?:a|an|the)\s+)?(?:(?:member|user|person|someone)\s+)?",
-                "",
-                message_lower,
-            )
+        if not job_request and (marathi_member_location or simple_member_lookup or natural_member_request or any(phrase in message_lower for phrase in member_phrases)):
+            if marathi_member_location:
+                query = marathi_member_location.group(1).strip(" ?.!\"")
+            else:
+                query = re.sub(
+                    r"^(?:(?:can|could) you\s+|please\s+)?(?:find|search|look for|look up)(?:\s+for)?\s+(?:(?:a|an|the)\s+)?(?:(?:member|user|person|someone)\s+)?",
+                    "",
+                    message_lower,
+                )
             query = re.sub(r"^(?:do you know|is there)\s+(?:(?:a|an|the)\s+)?(?:(?:member|user|person|someone)\s+)?", "", query)
             query = re.sub(r"^named\s+", "", query)
             query = re.sub(r"^(?:who is|who's)\s+(?:in|near)\s+", "", query)
             query = re.sub(r"^(?:who lives|which members are|which people are|show me people|anyone)\s+(?:in|near|from)\s+", "", query)
+            query = re.sub(r"^(?:(?:can|could) you\s+|please\s+)?(?:who is|who's|tell me about)\s+", "", query)
             query = re.sub(r"^(?:who is|who's|tell me about)\s+", "", query)
             query = re.sub(r"^(?:members?|people|users)\s+(?:in|near)\s+", "", query)
             query = query.strip(" ?.!\"")
