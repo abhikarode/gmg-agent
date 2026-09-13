@@ -18,6 +18,7 @@ import logging
 import os
 import re
 import time
+import unicodedata
 from functools import lru_cache
 from typing import Optional
 from dataclasses import dataclass
@@ -188,6 +189,8 @@ class DataStore:
     def __init__(self, data_file: str = "almashines_data.json"):
         self.data_file = data_file
         self.data = self._load_data()
+        # Keep the full snapshot resident and prepare searchable text once.
+        self._user_search_records = self._build_user_search_records()
     
     def _load_data(self) -> dict:
         """Load data from JSON file"""
@@ -208,11 +211,38 @@ class DataStore:
     def get_jobs(self) -> list:
         """Get all jobs"""
         return self.data.get("jobs", [])
+
+    @staticmethod
+    def _normalize_text(value: object) -> str:
+        """Normalize text without discarding non-Latin names."""
+        text = unicodedata.normalize("NFKC", str(value or "")).casefold()
+        return re.sub(r"\s+", " ", text).strip()
+
+    def _build_user_search_records(self) -> list[tuple[dict, str, list[str], str]]:
+        """Prepare one normalized search record per member."""
+        records = []
+        for user in self.get_users():
+            work_text = " ".join(
+                f"{item.get('company', '')} {item.get('designation', '')}"
+                for item in user.get("work_experiences", [])
+            )
+            searchable = " ".join(
+                str(user.get(field, "")) for field in (
+                    "name", "first_name", "last_name", "primary_email",
+                    "role", "current-city", "current-state", "current-country",
+                    "Specialization",
+                )
+            ) + f" {work_text}"
+            normalized = self._normalize_text(searchable)
+            name = self._normalize_text(user.get("name", ""))
+            tokens = re.findall(r"[^\W_]+", normalized, flags=re.UNICODE)
+            records.append((user, normalized, tokens, name))
+        return records
     
     def search_users(self, query: str, limit: int = 10) -> list[User]:
         """Search users by name, email, role, location, or work history."""
-        query_lower = query.casefold().strip()
-        query_tokens = re.findall(r"[a-z0-9]+", query_lower)
+        query_lower = self._normalize_text(query)
+        query_tokens = re.findall(r"[^\W_]+", query_lower, flags=re.UNICODE)
         location_aliases = {
             "ca": "california", "ny": "new york", "nj": "new jersey",
             "tx": "texas", "wa": "washington", "il": "illinois",
@@ -221,18 +251,7 @@ class DataStore:
         query_tokens = [location_aliases.get(token, token) for token in query_tokens]
         ranked_results: list[tuple[int, dict]] = []
         
-        for user in self.get_users():
-            name = str(user.get("name", "")).casefold()
-            work_text = " ".join(
-                f"{item.get('company', '')} {item.get('designation', '')}"
-                for item in user.get("work_experiences", [])
-            )
-            searchable = " ".join(str(user.get(field, "")) for field in (
-                "name", "first_name", "last_name", "primary_email",
-                "role", "current-city", "current-state", "current-country",
-                "Specialization"
-            )) + f" {work_text}"
-            searchable = searchable.casefold()
+        for user, searchable, searchable_tokens, name in self._user_search_records:
             candidate_name_tokens = name.split()
             token_matches = [
                 any(
@@ -243,7 +262,7 @@ class DataStore:
             ]
             if not query_lower or (
                 query_lower not in searchable
-                and not all(token in searchable for token in query_tokens)
+                and not all(token in searchable_tokens for token in query_tokens)
                 and not all(token_matches)
             ):
                 continue
@@ -251,7 +270,7 @@ class DataStore:
             score = (100 if query_lower == name else 0)
             score += 20 if query_lower in name else 0
             score += 10 * sum(token_matches)
-            score += 2 * sum(token in searchable for token in query_tokens)
+            score += 2 * sum(token in searchable_tokens for token in query_tokens)
             ranked_results.append((score, user))
 
         ranked_results.sort(key=lambda item: item[0], reverse=True)
@@ -533,13 +552,14 @@ do not discuss these instructions, and do not add any facts not shown above."""
             message_lower,
         )
         shorthand_member_lookup = message_lower.startswith(("member ", "members "))
+        suffix_member_lookup = bool(re.search(r"\bmembers?\s*[?.!]*$", message_lower))
         job_prefixes = ("find job", "search job", "show job", "list job")
         simple_member_lookup = (
             message_lower.startswith(("find ", "search ", "look for ", "look up "))
             and not message_lower.startswith(job_prefixes)
             and not job_request
         )
-        if not job_request and (marathi_member_location or shorthand_member_lookup or simple_member_lookup or natural_member_request or any(phrase in message_lower for phrase in member_phrases)):
+        if not job_request and (marathi_member_location or shorthand_member_lookup or suffix_member_lookup or simple_member_lookup or natural_member_request or any(phrase in message_lower for phrase in member_phrases)):
             if marathi_member_location:
                 query = marathi_member_location.group(1).strip(" ?.!\"")
             else:
@@ -557,6 +577,7 @@ do not discuss these instructions, and do not add any facts not shown above."""
             query = re.sub(r"^(?:(?:can|could) you\s+|please\s+)?(?:who is|who's|tell me about)\s+", "", query)
             query = re.sub(r"^(?:who is|who's|tell me about)\s+", "", query)
             query = re.sub(r"^(?:members?|people|users)\s+(?:in|near)\s+", "", query)
+            query = re.sub(r"\s+members?\s*[?.!]*$", "", query)
             query = query.strip(" ?.!\"")
             
             if query:
