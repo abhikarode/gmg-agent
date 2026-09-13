@@ -552,7 +552,9 @@ do not discuss these instructions, and do not add any facts not shown above."""
             message_lower,
         )
         shorthand_member_lookup = message_lower.startswith(("member ", "members "))
-        suffix_member_lookup = bool(re.search(r"\bmembers?\s*[?.!]*$", message_lower))
+        suffix_member_lookup = bool(re.search(r"\bmembers?\s*[?.!]*$", message_lower)) and not any(
+            phrase in message_lower for phrase in ("how many", "how much", "total", "count", "statistics", "stats")
+        )
         job_prefixes = ("find job", "search job", "show job", "list job")
         simple_member_lookup = (
             message_lower.startswith(("find ", "search ", "look for ", "look up "))
