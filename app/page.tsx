@@ -1,11 +1,38 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { signIn, signOut, useSession } from "next-auth/react";
 import axios from "axios";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
 const fallbackStats = [["5,132", "Members"], ["36", "Open roles"], ["2,478", "With photos"]];
+
+function renderInline(text: string): ReactNode[] {
+  const pattern = /(\[[^\]]+\]\(https?:\/\/[^\s)]+\)|https?:\/\/[^\s)]+|[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}|(?:\+?\d[\d\s().-]{7,}\d))/g;
+  const nodes: ReactNode[] = [];
+  let lastIndex = 0;
+  for (const match of text.matchAll(pattern)) {
+    const value = match[0];
+    const index = match.index ?? 0;
+    if (index > lastIndex) nodes.push(text.slice(lastIndex, index));
+    const markdownLink = value.match(/^\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)$/);
+    if (markdownLink) {
+      nodes.push(<a key={`${index}-link`} href={markdownLink[2]} target="_blank" rel="noreferrer">{markdownLink[1]}</a>);
+    } else if (/^https?:\/\//.test(value)) {
+      const trailing = value.match(/[.,!?;:]$/)?.[0] ?? "";
+      const url = trailing ? value.slice(0, -1) : value;
+      nodes.push(<a key={`${index}-url`} href={url} target="_blank" rel="noreferrer">{url}</a>, trailing);
+    } else if (value.includes("@")) {
+      nodes.push(<a key={`${index}-email`} href={`mailto:${value}`}>{value}</a>);
+    } else {
+      nodes.push(<a key={`${index}-phone`} href={`tel:${value.replace(/[^\d+]/g, "")}`}>{value}</a>);
+    }
+    lastIndex = index + value.length;
+  }
+  if (lastIndex < text.length) nodes.push(text.slice(lastIndex));
+  return nodes;
+}
 
 export default function ChatPage() {
   const { data: session, status } = useSession();
@@ -54,9 +81,9 @@ export default function ChatPage() {
       <div className="conversation">{messages.length === 0 ? <div className="welcome">
         <p className="eyebrow">नमस्कार</p><h1>योग्य लोक<br /><i>शोधा, पुढे चला.</i></h1>
         <p className="welcome-copy">Garje Marathi network मध्ये सोप्या भाषेत Search करा. Member, job role किंवा तुमच्यासाठी योग्य introduction शोधा.</p>
-        <div className="prompt-grid">{["Anand member Search करा", "Jobs दाखवा", "किती Members आहेत?"].map((prompt) => <button key={prompt} onClick={() => ask(prompt)}>{prompt}<span>↗</span></button>)}</div>
+        <div className="prompt-grid">{["Find member Anand Ganu", "Find jobs", "How many members?"].map((prompt) => <button key={prompt} onClick={() => ask(prompt)}>{prompt}<span>↗</span></button>)}</div>
       </div> : <div className="message-list">
-        {messages.map((message, index) => <article className={`message ${message.role}`} key={`${message.role}-${index}`}><span className="message-label">{message.role === "user" ? "You" : "Garje AI"}</span><div>{message.content.split("\n").map((line, lineIndex) => <p key={lineIndex}>{line || " "}</p>)}</div></article>)}
+        {messages.map((message, index) => <article className={`message ${message.role}`} key={`${message.role}-${index}`}><span className="message-label">{message.role === "user" ? "You" : "Garje AI"}</span><div>{message.content.split("\n").map((line, lineIndex) => <p key={lineIndex}>{line ? renderInline(line) : " "}</p>)}</div></article>)}
         {isLoading && <article className="message assistant"><span className="message-label">Garje AI</span><div className="typing"><span /><span /><span /></div></article>}<div ref={endRef} />
       </div>}</div>
       <div className="composer-wrap">{error && <p className="error-message">Community assistant ला थोडा वेळ लागतोय. कृपया पुन्हा प्रयत्न करा.</p>}<form className="composer" onSubmit={(event) => { event.preventDefault(); ask(); }}><label htmlFor="question">तुमचा प्रश्न · Your question</label><div><input id="question" value={input} onChange={(event) => setInput(event.target.value)} placeholder="Members, roles किंवा opportunities बद्दल विचारा…" disabled={isLoading} /><button type="submit" disabled={!input.trim() || isLoading}>Search <span>↗</span></button></div></form><p className="composer-note">Latest member index मधून उत्तरे · Ollama-assisted</p></div>
