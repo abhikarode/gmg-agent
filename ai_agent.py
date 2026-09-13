@@ -397,6 +397,7 @@ Data Sources:
 - Community info from garjemarathi.com
 
         When responding:
+        - Every answer must use the retrieved context supplied with the user's request.
         - Be concise and to the point
         - Use bullet points for lists
         - Include relevant details like names, locations, and roles
@@ -406,7 +407,21 @@ Data Sources:
         - If a user asks for a member or job and no matching record is supplied, say that no matching
           record was found and ask for a spelling, city, or other detail.
 
-Format your responses in markdown for better readability."""
+        Format your responses in markdown for better readability."""
+
+    def _answer_with_context(self, user_message: str, context: str) -> str:
+        """Run every request through the fast model using retrieved local data."""
+        prompt = f"""User request: {user_message}
+
+Retrieved community context (the only source of directory facts):
+{context}
+
+Answer the user naturally and concisely. Use the retrieved context exactly; do not add
+names, locations, jobs, contact details, or counts that are not present in it. If the
+context says there is no match, say that clearly and suggest a spelling or another filter.
+Reply in Marathi when the user writes in Marathi; otherwise reply in the user's language.
+"""
+        return self._call_llm(prompt)
 
     def _format_users(self, users: list[User]) -> str:
         """Format users for display"""
@@ -479,13 +494,14 @@ Format your responses in markdown for better readability."""
             r"^(.+?)\s+(?:मध्ये|मधे)\s+(?:कोणते|कोण|किती)?\s*(?:members?|सदस्य)",
             message_lower,
         )
+        shorthand_member_lookup = message_lower.startswith(("member ", "members "))
         job_prefixes = ("find job", "search job", "show job", "list job")
         simple_member_lookup = (
             message_lower.startswith(("find ", "search ", "look for ", "look up "))
             and not message_lower.startswith(job_prefixes)
             and not job_request
         )
-        if not job_request and (marathi_member_location or simple_member_lookup or natural_member_request or any(phrase in message_lower for phrase in member_phrases)):
+        if not job_request and (marathi_member_location or shorthand_member_lookup or simple_member_lookup or natural_member_request or any(phrase in message_lower for phrase in member_phrases)):
             if marathi_member_location:
                 query = marathi_member_location.group(1).strip(" ?.!\"")
             else:
@@ -494,6 +510,8 @@ Format your responses in markdown for better readability."""
                     "",
                     message_lower,
                 )
+                query = re.sub(r"^members?\s+(?:(?:named|called)\s+)?", "", query)
+                query = re.sub(r"^(?:in|near|from)\s+", "", query)
             query = re.sub(r"^(?:do you know|is there)\s+(?:(?:a|an|the)\s+)?(?:(?:member|user|person|someone)\s+)?", "", query)
             query = re.sub(r"^named\s+", "", query)
             query = re.sub(r"^(?:who is|who's)\s+(?:in|near)\s+", "", query)
@@ -505,9 +523,12 @@ Format your responses in markdown for better readability."""
             
             if query:
                 users = self.data_store.search_users(query)
-                return self._format_users(users)
+                return self._answer_with_context(user_message, self._format_users(users))
             else:
-                return "Please provide a name, email, or role to search for members."
+                return self._answer_with_context(
+                    user_message,
+                    "No member search term was provided. Ask for a name, email, role, or location.",
+                )
         
         # Handle job search
         if job_request or any(phrase in message_lower for phrase in [
@@ -532,11 +553,11 @@ Format your responses in markdown for better readability."""
             
             if query:
                 jobs = self.data_store.search_jobs(query)
-                return self._format_jobs(jobs)
+                return self._answer_with_context(user_message, self._format_jobs(jobs))
             else:
                 # Show all jobs if no query
                 jobs = self.data_store.search_jobs("")
-                return self._format_jobs(jobs)
+                return self._answer_with_context(user_message, self._format_jobs(jobs))
         
         # Handle stats query
         if any(phrase in message_lower for phrase in [
@@ -544,25 +565,25 @@ Format your responses in markdown for better readability."""
             "number of members", "how many members", "member count"
         ]):
             stats = self.data_store.get_stats()
-            return f"""**Community Statistics:**
+            return self._answer_with_context(user_message, f"""**Community Statistics:**
 
 - 👥 Total Members: {stats['total_users']}
 - 💼 Job Opportunities: {stats['total_jobs']}
 - 📸 Profiles with Photos: {stats['users_with_profiles']}
-- 💼 Members with Work Experience: {stats['users_with_work_experience']}"""
+- 💼 Members with Work Experience: {stats['users_with_work_experience']}""")
         
         # Handle general questions about the community
         if any(phrase in message_lower for phrase in [
             "about community", "about garje", "what is garje",
             "community info", "community details", "who are we"
         ]):
-            return f"""**{self.community_info.name}**
+            return self._answer_with_context(user_message, f"""**{self.community_info.name}**
 
 {self.community_info.description}
 
 This is a global community platform for Marathi professionals and enthusiasts. We connect members through networking, job opportunities, and community events.
 
-For more information, visit: https://www.garjemarathi.com"""
+For more information, visit: https://www.garjemarathi.com""")
         
         # Default: use LLM for general conversation
         prompt = f"""User asked: "{user_message}"
@@ -573,7 +594,9 @@ Available data:
 
 Please provide a helpful response based on this context."""
         
-        return self._call_llm(prompt)
+        return self._answer_with_context(user_message, f"""Community overview:
+{prompt}
+""")
     
     def chat(self, user_message: str) -> str:
         """Main chat method - handles a single message"""
