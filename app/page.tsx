@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
+import Image from "next/image";
 import { signIn, signOut, useSession } from "next-auth/react";
 import axios from "axios";
 
@@ -79,6 +80,7 @@ export default function ChatPage() {
     <section className="chat-stage">
       <header className="topbar"><div><span className="eyebrow">Network ला विचारा</span><span className="live-pill">● Live index</span></div><div className="user-chip">{session?.user?.name || "Member"}</div></header>
       <div className="conversation">{messages.length === 0 ? <div className="welcome">
+        <Image className="welcome-logo" src="/garje-marathi-logo.png" alt="Garje Marathi Global" width={445} height={220} priority />
         <p className="eyebrow">नमस्कार</p><h1>योग्य लोक<br /><i>शोधा, पुढे चला.</i></h1>
         <p className="welcome-copy">Garje Marathi network मध्ये सोप्या भाषेत Search करा. Member, job role किंवा तुमच्यासाठी योग्य introduction शोधा.</p>
         <div className="prompt-grid">{["Find member Anand Ganu", "Find jobs", "How many members?"].map((prompt) => <button key={prompt} onClick={() => ask(prompt)}>{prompt}<span>↗</span></button>)}</div>
