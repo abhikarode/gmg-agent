@@ -358,6 +358,7 @@ class AIAgent:
                 ],
                 stream=False,
                 keep_alive=-1,
+                think=False,
                 options={"temperature": 0.1, "num_predict": 256},
             )
             
@@ -416,10 +417,12 @@ Data Sources:
 Retrieved community context (the only source of directory facts):
 {context}
 
-Answer the user naturally and concisely. Use the retrieved context exactly; do not add
-names, locations, jobs, contact details, or counts that are not present in it. If the
-context says there is no match, say that clearly and suggest a spelling or another filter.
-Reply in Marathi when the user writes in Marathi; otherwise reply in the user's language.
+        Answer the user naturally and concisely. Use the retrieved context exactly; do not add
+        names, locations, jobs, contact details, or counts that are not present in it. If the
+        context says there is no match, say that clearly and suggest a spelling or another filter.
+        Reply in Marathi when the user writes in Marathi; otherwise reply in the user's language.
+        Return only the final answer for the user. Do not repeat the request, prompt instructions,
+        context labels, or internal reasoning.
 """
         return self._call_llm(prompt)
 
