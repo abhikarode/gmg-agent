@@ -192,7 +192,13 @@ class DataStore:
     def search_users(self, query: str, limit: int = 10) -> list[User]:
         """Search users by name, email, role, location, or work history."""
         query_lower = query.casefold().strip()
-        query_tokens = [token for token in query_lower.split() if token]
+        query_tokens = re.findall(r"[a-z0-9]+", query_lower)
+        location_aliases = {
+            "ca": "california", "ny": "new york", "nj": "new jersey",
+            "tx": "texas", "wa": "washington", "il": "illinois",
+            "ma": "massachusetts", "va": "virginia",
+        }
+        query_tokens = [location_aliases.get(token, token) for token in query_tokens]
         ranked_results: list[tuple[int, dict]] = []
         
         for user in self.get_users():
@@ -447,7 +453,9 @@ Format your responses in markdown for better readability."""
         member_phrases = [
             "find member", "search member", "search for member", 
             "look for member", "find user", "search user", "look up member",
-            "look up user", "who is", "who's", "tell me about"
+            "look up user", "who is", "who's", "tell me about", "members in",
+            "members near", "people in", "people near", "users in", "users near",
+            "who is in", "who's in"
         ]
         job_prefixes = ("find job", "search job", "show job", "list job")
         simple_member_lookup = (
@@ -460,7 +468,9 @@ Format your responses in markdown for better readability."""
                 "",
                 message_lower,
             )
+            query = re.sub(r"^(?:who is|who's)\s+(?:in|near)\s+", "", query)
             query = re.sub(r"^(?:who is|who's|tell me about)\s+", "", query)
+            query = re.sub(r"^(?:members?|people|users)\s+(?:in|near)\s+", "", query)
             query = query.strip(" ?.!\"")
             
             if query:
