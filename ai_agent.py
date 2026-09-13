@@ -32,6 +32,7 @@ logger = logging.getLogger(__name__)
 
 class ModelType(str, Enum):
     """Available Ollama models"""
+    QWEN3_8B = "qwen3:8b"
     GEMMA4_26B = "gemma4:26b"
     GEMMA4_31B = "gemma4:31b"
     MISTRAL = "mistral"
@@ -39,7 +40,7 @@ class ModelType(str, Enum):
 
 
 MODEL_PROFILES = {
-    "fast": "gemma4:12b",
+    "fast": "qwen3:8b",
     "balanced": "gemma4:26b",
     "quality": "gemma4:31b",
 }
@@ -188,36 +189,58 @@ class DataStore:
         return self.data.get("jobs", [])
     
     def search_users(self, query: str, limit: int = 10) -> list[User]:
-        """Search users by name, email, or role"""
-        query_lower = query.lower()
-        results = []
+        """Search users by name, email, role, location, or work history."""
+        query_lower = query.casefold().strip()
+        query_tokens = [token for token in query_lower.split() if token]
+        ranked_results: list[tuple[int, dict]] = []
         
         for user in self.get_users():
-            name = user.get("name", "").lower()
-            email = user.get("primary_email", "").lower()
-            role = str(user.get("role", "")).lower()
-            city = user.get("current-city", "").lower()
-            
-            if (query_lower in name or 
-                query_lower in email or 
-                query_lower in role or
-                query_lower in city):
-                results.append(User(
-                    unique_profile_id=user.get("unique_profile_id", ""),
-                    name=user.get("name", "N/A"),
-                    email=user.get("primary_email", "N/A"),
-                    role=user.get("role", 0),
-                    city=user.get("current-city", "N/A"),
-                    state=user.get("current-state", "N/A"),
-                    country=user.get("current-country", "N/A"),
-                    linkedin=user.get("profile_url_linkedin"),
-                    phone=user.get("primary_phone_number")
-                ))
-            
-            if len(results) >= limit:
-                break
-        
-        return results
+            name = str(user.get("name", "")).casefold()
+            work_text = " ".join(
+                f"{item.get('company', '')} {item.get('designation', '')}"
+                for item in user.get("work_experiences", [])
+            )
+            searchable = " ".join(str(user.get(field, "")) for field in (
+                "name", "first_name", "last_name", "primary_email",
+                "role", "current-city", "current-state", "current-country",
+                "Specialization"
+            )) + f" {work_text}"
+            searchable = searchable.casefold()
+            candidate_name_tokens = name.split()
+            token_matches = [
+                any(
+                    token in candidate
+                    or (len(token) >= 4 and candidate.startswith(token[:4]))
+                    for candidate in candidate_name_tokens
+                ) for token in query_tokens
+            ]
+            if not query_lower or (
+                query_lower not in searchable
+                and not all(token in searchable for token in query_tokens)
+                and not all(token_matches)
+            ):
+                continue
+
+            score = (100 if query_lower == name else 0)
+            score += 20 if query_lower in name else 0
+            score += 10 * sum(token_matches)
+            score += 2 * sum(token in searchable for token in query_tokens)
+            ranked_results.append((score, user))
+
+        ranked_results.sort(key=lambda item: item[0], reverse=True)
+        return [User(
+            unique_profile_id=user.get("unique_profile_id", ""),
+            name=user.get("name", "N/A"),
+            email=user.get("primary_email", "N/A"),
+            role=user.get("role", 0),
+            city=user.get("current-city", "N/A"),
+            state=user.get("current-state", "N/A"),
+            country=user.get("current-country", "N/A"),
+            linkedin=user.get("profile_url_linkedin"),
+            phone=user.get("primary_phone_number"),
+            designation=(user.get("work_experiences") or [{}])[0].get("designation"),
+            company=(user.get("work_experiences") or [{}])[0].get("company"),
+        ) for _, user in ranked_results[:limit]]
     
     def search_jobs(self, query: str, limit: int = 10) -> list[Job]:
         """Search jobs by title, company, or location"""
@@ -298,8 +321,9 @@ class AIAgent:
         available = set(cls._available_models())
         for candidate in (
             os.getenv("OLLAMA_MODEL"),
-            MODEL_PROFILES["balanced"],
             MODEL_PROFILES["fast"],
+            ModelType.MISTRAL.value + ":latest",
+            MODEL_PROFILES["balanced"],
             MODEL_PROFILES["quality"],
             ModelType.GLM.value,
             ModelType.MISTRAL.value,
@@ -417,14 +441,20 @@ Format your responses in markdown for better readability."""
         # Clear conversation context
         self.conversation_history = []
         
-        # Handle member search
-        if any(phrase in message_lower for phrase in [
+        # Handle explicit and natural-language member searches without using
+        # the LLM for exact directory lookups.
+        member_phrases = [
             "find member", "search member", "search for member", 
-            "look for member", "find user", "search user"
-        ]):
+            "look for member", "find user", "search user", "look up member",
+            "look up user", "who is", "who's", "tell me about"
+        ]
+        if any(phrase in message_lower for phrase in member_phrases):
             query = message_lower.replace("find member", "").replace("search member", "")
             query = query.replace("search for member", "").replace("look for member", "")
-            query = query.replace("find user", "").replace("search user", "").strip()
+            query = query.replace("find user", "").replace("search user", "")
+            query = query.replace("look up member", "").replace("look up user", "")
+            query = query.replace("who is", "").replace("who's", "")
+            query = query.replace("tell me about", "").strip(" ?.!\"")
             
             if query:
                 users = self.data_store.search_users(query)
