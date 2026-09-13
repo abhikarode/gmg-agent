@@ -547,6 +547,17 @@ do not discuss these instructions, and do not add any facts not shown above."""
             r"\b(?:jobs?|roles?|opportunities?)\s+(?:are\s+)?(?:available|open)\b",
             r"\bopen\s+roles?\b",
         ))
+        location_count_match = re.search(
+            r"\b(?:how many|number of|count of)\s+members?\s+(?:are\s+)?(?:there\s+)?(?:in|near|from)\s+(.+?)\s*[?.!]*$",
+            message_lower,
+        )
+        if not job_request and location_count_match:
+            location = location_count_match.group(1).strip()
+            matching_members = self.data_store.search_users(location, limit=10000)
+            return self._answer_with_context(
+                user_message,
+                f"There are {len(matching_members)} members matching the location \"{location}\".",
+            )
         marathi_member_location = re.match(
             r"^(.+?)\s+(?:मध्ये|मधे)\s+(?:कोणते|कोण|किती)?\s*(?:members?|सदस्य)",
             message_lower,

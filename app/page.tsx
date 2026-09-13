@@ -83,7 +83,7 @@ export default function ChatPage() {
         <Image className="welcome-logo" src="/garje-marathi-logo.png" alt="Garje Marathi Global" width={445} height={220} priority />
         <p className="eyebrow">नमस्कार</p><h1>योग्य लोक<br /><i>शोधा, पुढे चला.</i></h1>
         <p className="welcome-copy">Garje Marathi network मध्ये सोप्या भाषेत Search करा. Member, job role किंवा तुमच्यासाठी योग्य introduction शोधा.</p>
-        <div className="prompt-grid">{["Find member Anand Ganu", "Find jobs", "How many members?"].map((prompt) => <button key={prompt} onClick={() => ask(prompt)}>{prompt}<span>↗</span></button>)}</div>
+        <div className="prompt-grid">{["Find members in Sydney", "Find member Anand Ganu", "Find members with marketing experience", "Find jobs in California"].map((prompt) => <button key={prompt} onClick={() => ask(prompt)}>{prompt}<span>↗</span></button>)}</div>
       </div> : <div className="message-list">
         {messages.map((message, index) => <article className={`message ${message.role}`} key={`${message.role}-${index}`}><span className="message-label">{message.role === "user" ? "You" : "Garje AI"}</span><div>{message.content.split("\n").map((line, lineIndex) => <p key={lineIndex}>{line ? renderInline(line) : " "}</p>)}</div></article>)}
         {isLoading && <article className="message assistant"><span className="message-label">Garje AI</span><div className="typing"><span /><span /><span /></div></article>}<div ref={endRef} />
