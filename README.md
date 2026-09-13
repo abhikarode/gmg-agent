@@ -78,7 +78,7 @@ The API reads the refreshed `almashines_data.json` when it starts. The latest ve
 
 ## Ollama profiles
 
-The API accepts `auto`, `fast`, `balanced`, or `quality`. `auto` chooses the best installed model, preferring `gemma4:26b`, then `gemma4:12b`, then `gemma4:31b`. Override with `OLLAMA_MODEL` when needed. The UI uses `auto`.
+The API accepts `auto`, `fast`, `balanced`, or `quality`. `fast` and `auto` prefer `qwen3:8b` for responsive general assistance, with `mistral:latest` as the fallback; `balanced` uses `gemma4:26b`; `quality` uses `gemma4:31b`. Override with `OLLAMA_MODEL` when needed. Exact member and job lookups bypass the LLM so factual directory answers do not depend on model memory.
 
 ## Login providers
 
