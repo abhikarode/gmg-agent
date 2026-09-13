@@ -17,6 +17,7 @@ import json
 import logging
 import os
 import re
+import time
 from functools import lru_cache
 from typing import Optional
 from dataclasses import dataclass
@@ -80,6 +81,7 @@ class CommunityInfo:
     description: str
     mission: Optional[str] = None
     contact_email: Optional[str] = None
+    website_context: Optional[str] = None
 
 
 class WebsiteScraper:
@@ -89,12 +91,17 @@ class WebsiteScraper:
     
     def __init__(self):
         self.session = requests.Session()
+        self._cached_info: Optional[CommunityInfo] = None
+        self._cached_at = 0.0
+        self.cache_ttl = 600
         self.session.headers.update({
             "User-Agent": "GarjeMarathiAI/1.0"
         })
     
     def scrape_homepage(self) -> CommunityInfo:
         """Scrape community information from homepage"""
+        if self._cached_info and time.time() - self._cached_at < self.cache_ttl:
+            return self._cached_info
         try:
             response = self.session.get(self.BASE_URL, timeout=10)
             response.raise_for_status()
@@ -112,19 +119,32 @@ class WebsiteScraper:
             
             # Extract contact email
             contact_email = self._extract_email(soup)
-            
-            return CommunityInfo(
+            info = CommunityInfo(
                 name=name,
                 description=description,
-                contact_email=contact_email
+                contact_email=contact_email,
+                website_context=self._extract_page_text(soup),
             )
+            self._cached_info = info
+            self._cached_at = time.time()
+            return info
             
         except requests.RequestException as e:
             logger.error(f"Failed to scrape homepage: {e}")
-            return CommunityInfo(
+            info = CommunityInfo(
                 name="Garje Marathi Global",
                 description="A global community platform for Marathi professionals and enthusiasts."
             )
+            self._cached_info = info
+            self._cached_at = time.time()
+            return info
+
+    def _extract_page_text(self, soup: BeautifulSoup) -> str:
+        """Return concise, readable text for grounding website questions."""
+        for element in soup(["script", "style", "noscript", "svg"]):
+            element.decompose()
+        text = soup.get_text(" ", strip=True)
+        return re.sub(r"\s+", " ", text)[:6000]
     
     def _extract_description(self, soup: BeautifulSoup) -> str:
         """Extract description from page content"""
@@ -425,7 +445,21 @@ Retrieved community context (the only source of directory facts):
         Return only the final answer for the user. Do not repeat the request, prompt instructions,
         context labels, or internal reasoning.
 """
-        return self._call_llm(prompt)
+        answer = self._call_llm(prompt)
+        has_records = context.startswith(("Found ", "**Community Statistics:**", "**Garje Marathi Global**"))
+        denial = re.search(r"\b(no matching|no member|couldn.t find|not found|no information|does not include)\b", answer.casefold())
+        if has_records and denial:
+            retry_prompt = f"""Return only a concise English answer to this user request: {user_message}
+
+These are verified records found in the Garje Marathi directory:
+{context}
+
+Matching records are present. Summarize the records above; do not say there is no match,
+do not discuss these instructions, and do not add any facts not shown above."""
+            answer = self._call_llm(retry_prompt)
+            if re.search(r"\b(no matching|no member|couldn.t find|not found|no information|does not include)\b", answer.casefold()):
+                return context
+        return answer
 
     def _format_users(self, users: list[User]) -> str:
         """Format users for display"""
@@ -589,18 +623,25 @@ This is a global community platform for Marathi professionals and enthusiasts. W
 
 For more information, visit: https://www.garjemarathi.com""")
         
-        # Default: use LLM for general conversation
-        prompt = f"""User asked: "{user_message}"
+        # For unstructured requests, retrieve from both indexes before asking the
+        # model to answer. Never provide aggregate counts as if they were matches.
+        candidate_users = self.data_store.search_users(message_lower)
+        candidate_jobs = self.data_store.search_jobs(message_lower)
+        if candidate_users or candidate_jobs:
+            context_parts = []
+            if candidate_users:
+                context_parts.append(self._format_users(candidate_users))
+            if candidate_jobs:
+                context_parts.append(self._format_jobs(candidate_jobs))
+            context = "\n\n".join(context_parts)
+        else:
+            needs_website = any(term in message_lower for term in (
+                "garje", "community", "website", "mission", "about us", "contact"
+            ))
+            website_context = self.scraper.scrape_homepage().website_context if needs_website else None
+            context = website_context or "No matching member or job record was found for this request."
 
-Available data:
-- {self.data_store.get_stats()['total_users']} community members
-- {self.data_store.get_stats()['total_jobs']} job opportunities
-
-Please provide a helpful response based on this context."""
-        
-        return self._answer_with_context(user_message, f"""Community overview:
-{prompt}
-""")
+        return self._answer_with_context(user_message, context)
     
     def chat(self, user_message: str) -> str:
         """Main chat method - handles a single message"""
