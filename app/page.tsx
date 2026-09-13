@@ -28,7 +28,11 @@ export default function ChatPage() {
     setInput(""); setError(null);
     setMessages((current) => [...current, { role: "user", content: message }]); setIsLoading(true);
     try {
-      const response = await axios.post(`${API_URL}/chat`, { message, model: "auto" });
+      const response = await axios.post(`${API_URL}/chat`, {
+        message,
+        model: "auto",
+        user: { name: session?.user?.name ?? null, email: session?.user?.email ?? null },
+      });
       setMessages((current) => [...current, { role: "assistant", content: response.data.response }]);
     } catch { setError("The community assistant is taking a moment. Please try again."); }
     finally { setIsLoading(false); }

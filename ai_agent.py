@@ -356,7 +356,9 @@ class AIAgent:
                     {"role": "system", "content": self._get_system_prompt()},
                     {"role": "user", "content": prompt}
                 ],
-                stream=False
+                stream=False,
+                keep_alive=-1,
+                options={"temperature": 0.1, "num_predict": 256},
             )
             
             # Handle both dict and ChatResponse types
@@ -394,12 +396,15 @@ Data Sources:
 - Job postings from almashines_data.json
 - Community info from garjemarathi.com
 
-When responding:
-- Be concise and to the point
-- Use bullet points for lists
-- Include relevant details like names, locations, and roles
-- If you don't know something, say so honestly
-- Don't make up information
+        When responding:
+        - Be concise and to the point
+        - Use bullet points for lists
+        - Include relevant details like names, locations, and roles
+        - If you don't know something, say so honestly
+        - Don't make up information. Never infer a member's identity, job, contact details, or location
+          from general knowledge; those facts must come from the directory data supplied in the prompt.
+        - If a user asks for a member or job and no matching record is supplied, say that no matching
+          record was found and ask for a spelling, city, or other detail.
 
 Format your responses in markdown for better readability."""
 
@@ -455,20 +460,37 @@ Format your responses in markdown for better readability."""
             "look for member", "find user", "search user", "look up member",
             "look up user", "who is", "who's", "tell me about", "members in",
             "members near", "people in", "people near", "users in", "users near",
-            "who is in", "who's in"
+            "who is in", "who's in", "who lives in", "who lives near", "who lives from",
+            "which members are in", "which people are in", "show me people in",
+            "anyone in", "anyone near"
         ]
+        natural_member_request = any(re.search(pattern, message_lower) for pattern in (
+            r"\b(?:can you|could you|please)\s+(?:find|search|look up)\b",
+            r"\b(?:find|search|look up)\s+(?:a\s+)?(?:person|someone|user|member)\b",
+            r"\b(?:do you know|is there)\s+(?:a\s+)?(?:person|someone|user|member)\b",
+        ))
+        job_request = any(re.search(pattern, message_lower) for pattern in (
+            r"\b(?:find|search|show|list)\b.*\bjobs?\b",
+            r"\b(?:what|which)\s+(?:jobs?|roles?|opportunities?)\b",
+            r"\b(?:jobs?|roles?|opportunities?)\s+(?:are\s+)?(?:available|open)\b",
+            r"\bopen\s+roles?\b",
+        ))
         job_prefixes = ("find job", "search job", "show job", "list job")
         simple_member_lookup = (
             message_lower.startswith(("find ", "search ", "look for ", "look up "))
             and not message_lower.startswith(job_prefixes)
+            and not job_request
         )
-        if simple_member_lookup or any(phrase in message_lower for phrase in member_phrases):
+        if not job_request and (simple_member_lookup or natural_member_request or any(phrase in message_lower for phrase in member_phrases)):
             query = re.sub(
-                r"^(?:find|search|look for|look up)(?:\s+for)?\s+(?:(?:a|an|the)\s+)?(?:(?:member|user|person)\s+)?",
+                r"^(?:(?:can|could) you\s+|please\s+)?(?:find|search|look for|look up)(?:\s+for)?\s+(?:(?:a|an|the)\s+)?(?:(?:member|user|person|someone)\s+)?",
                 "",
                 message_lower,
             )
+            query = re.sub(r"^(?:do you know|is there)\s+(?:(?:a|an|the)\s+)?(?:(?:member|user|person|someone)\s+)?", "", query)
+            query = re.sub(r"^named\s+", "", query)
             query = re.sub(r"^(?:who is|who's)\s+(?:in|near)\s+", "", query)
+            query = re.sub(r"^(?:who lives|which members are|which people are|show me people|anyone)\s+(?:in|near|from)\s+", "", query)
             query = re.sub(r"^(?:who is|who's|tell me about)\s+", "", query)
             query = re.sub(r"^(?:members?|people|users)\s+(?:in|near)\s+", "", query)
             query = query.strip(" ?.!\"")
@@ -480,13 +502,25 @@ Format your responses in markdown for better readability."""
                 return "Please provide a name, email, or role to search for members."
         
         # Handle job search
-        if any(phrase in message_lower for phrase in [
+        if job_request or any(phrase in message_lower for phrase in [
             "find job", "search job", "show job", "show me jobs",
             "list jobs", "search for job", "job opening", "job opportunity"
         ]):
-            query = message_lower.replace("find job", "").replace("search job", "")
+            query = re.sub(
+                r"^(?:what|which)\s+(?:jobs?|roles?|opportunities?)\s+(?:are\s+)?(?:available|open)\s*(?:in|for)?\s*",
+                "",
+                message_lower,
+            )
+            query = re.sub(
+                r"^(?:(?:can|could) you\s+)?(?:please\s+)?(?:find|search|show|list)\s+(?:(?:a|an|the)\s+)?jobs?\s*(?:in|for)?\s*",
+                "",
+                query,
+            )
             query = query.replace("show job", "").replace("show me jobs", "")
-            query = query.replace("list jobs", "").replace("search for job", "").strip()
+            query = query.replace("find job", "").replace("search job", "")
+            query = query.replace("list jobs", "").replace("search for job", "")
+            query = re.sub(r"^(?:jobs?|roles?|opportunities?)\s+(?:available|open)\s*(?:in|for)?\s*", "", query)
+            query = query.strip(" ?.!\"")
             
             if query:
                 jobs = self.data_store.search_jobs(query)

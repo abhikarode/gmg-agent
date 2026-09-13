@@ -22,7 +22,9 @@ export default function PrivacyPolicyPage() {
         <p>
           When you sign in, we receive your name, email address, profile image, and account
           identifier from the authentication provider you choose. We also receive the messages
-          you send to the assistant so it can respond to your request.
+          you send to the assistant so it can respond to your request. We keep a private audit
+          log on the community backend containing the signed-in identity, query, model used, and
+          request timing for security, troubleshooting, and service improvement.
         </p>
 
         <h2>How we use information</h2>

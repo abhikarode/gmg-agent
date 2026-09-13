@@ -10,6 +10,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from functools import lru_cache
 from typing import Optional
+from datetime import datetime, timezone
+import json
+import os
+import threading
+import time
 
 from ai_agent import AIAgent, DataStore, ModelType
 
@@ -28,10 +33,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+QUERY_LOG_PATH = os.getenv("QUERY_LOG_PATH", "query_logs.jsonl")
+_query_log_lock = threading.Lock()
+
 
 class ChatRequest(BaseModel):
     message: str
     model: Optional[str] = "auto"
+    user: Optional[dict[str, Optional[str]]] = None
 
 
 class ChatResponse(BaseModel):
@@ -68,6 +77,9 @@ async def stats():
 @app.post("/api/chat")
 async def chat(request: ChatRequest) -> ChatResponse:
     """Send a message to the AI agent"""
+    started = time.perf_counter()
+    status = "success"
+    selected_model = request.model or "auto"
     try:
         # Validate model
         allowed_models = {"auto", "fast", "balanced", "quality"} | {m.value for m in ModelType}
@@ -78,16 +90,39 @@ async def chat(request: ChatRequest) -> ChatResponse:
             )
         
         # Initialize agent and get response
-        selected_model = request.model or "auto"
         agent = get_agent(selected_model)
         response = agent.chat(request.message)
         
         return ChatResponse(response=response, model=agent.model)
         
     except HTTPException:
+        status = "rejected"
         raise
     except Exception:
+        status = "error"
         raise HTTPException(status_code=500, detail="The assistant could not complete that request")
+    finally:
+        _write_query_log(request, selected_model, status, time.perf_counter() - started)
+
+
+def _write_query_log(request: ChatRequest, requested_model: str, status: str, elapsed: float) -> None:
+    """Append a local audit record without exposing logs through the public API."""
+    record = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "user_name": (request.user or {}).get("name"),
+        "user_email": (request.user or {}).get("email"),
+        "query": request.message,
+        "requested_model": requested_model,
+        "status": status,
+        "latency_ms": round(elapsed * 1000),
+    }
+    try:
+        with _query_log_lock:
+            with open(QUERY_LOG_PATH, "a", encoding="utf-8") as log_file:
+                log_file.write(json.dumps(record, ensure_ascii=False) + "\n")
+    except OSError:
+        # Logging must never make the assistant unavailable.
+        pass
 
 
 @lru_cache(maxsize=8)
