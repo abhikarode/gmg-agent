@@ -16,6 +16,7 @@ Key features:
 import json
 import logging
 import os
+import re
 from functools import lru_cache
 from typing import Optional
 from dataclasses import dataclass
@@ -448,13 +449,19 @@ Format your responses in markdown for better readability."""
             "look for member", "find user", "search user", "look up member",
             "look up user", "who is", "who's", "tell me about"
         ]
-        if any(phrase in message_lower for phrase in member_phrases):
-            query = message_lower.replace("find member", "").replace("search member", "")
-            query = query.replace("search for member", "").replace("look for member", "")
-            query = query.replace("find user", "").replace("search user", "")
-            query = query.replace("look up member", "").replace("look up user", "")
-            query = query.replace("who is", "").replace("who's", "")
-            query = query.replace("tell me about", "").strip(" ?.!\"")
+        job_prefixes = ("find job", "search job", "show job", "list job")
+        simple_member_lookup = (
+            message_lower.startswith(("find ", "search ", "look for ", "look up "))
+            and not message_lower.startswith(job_prefixes)
+        )
+        if simple_member_lookup or any(phrase in message_lower for phrase in member_phrases):
+            query = re.sub(
+                r"^(?:find|search|look for|look up)(?:\s+for)?\s+(?:(?:a|an|the)\s+)?(?:(?:member|user|person)\s+)?",
+                "",
+                message_lower,
+            )
+            query = re.sub(r"^(?:who is|who's|tell me about)\s+", "", query)
+            query = query.strip(" ?.!\"")
             
             if query:
                 users = self.data_store.search_users(query)
