@@ -1,4 +1,18 @@
-# Garje Marathi Global community assistant
+# GMG Community Desk
+
+The Community Desk helps Garje Marathi Global members find people, share expertise, and discover opportunities in the Marathi community.
+
+[Open the Community Desk](https://green-river-01309971e.5.azurestaticapps.net/) · [Build and restore on Azure](infra/azure/flex-auth/README.md)
+
+## For members
+
+- **Find people** by name, or describe the help you need to find members with relevant experience.
+- **Ask GMG** about the community and its programs.
+- **Explore opportunities** and update **My expertise** so other members can find you.
+
+Sign in with LinkedIn. Desk features require a verified LinkedIn email that matches an active GMG membership. The public landing page also shows GMG news and events.
+
+## For maintainers
 
 The live GMG Community Desk runs on **Azure Static Web Apps Free** and **Azure Functions Flex Consumption**. Flex handles LinkedIn sign-in, membership verification, people search, Ask GMG, Opportunities, and expertise updates. The member directory and membership index use private Azure Blob Storage. Azure Tables hold member expertise and inference counters, and Azure OpenAI GPT-6 Luna supports conversational answers and expertise matching.
 
