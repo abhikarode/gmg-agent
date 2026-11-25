@@ -1,89 +1,27 @@
-# Garje Marathi AI UI
+# GMG Community Desk
 
-Next.js chat interface for the Garje Marathi Community AI.
+The Community Desk helps Garje Marathi Global members find people, share expertise, and discover opportunities in the Marathi community.
 
-## Setup
+[Open the Community Desk](https://green-river-01309971e.5.azurestaticapps.net/) · [Browse the Azure source](https://github.com/abhikarode/gmg-agent/tree/codex/azure-release) · [Build and restore on Azure](https://github.com/abhikarode/gmg-agent/blob/codex/azure-release/infra/azure/flex-auth/README.md)
 
-```bash
-npm install
-npm run dev
+## For members
+
+- **Find people** by name, or describe the help you need to find members with relevant experience.
+- **Ask GMG** about the community and its programs.
+- **Explore opportunities** and update **My expertise** so other members can find you.
+
+Sign in with LinkedIn. Desk features require a verified LinkedIn email that matches an active GMG membership. The public landing page also shows GMG news and events.
+
+## For maintainers
+
+The live app uses Azure Static Web Apps Free for the landing page and Azure Functions Flex Consumption for LinkedIn sign-in and the Desk. Private Azure Blob Storage holds the directory and membership index. Azure Tables store member expertise and inference counters. Azure OpenAI GPT-6 Luna supports Ask GMG and expertise matching. Exact directory search runs without an AI call.
+
+Use the `codex/azure-release` branch to rebuild the version running on Azure. It contains the Flex package builder, the landing-page build, Bicep templates, and tests.
+
+```sh
+git clone --single-branch --branch codex/azure-release https://github.com/abhikarode/gmg-agent.git
+cd gmg-agent
+python3 infra/azure/flex-auth/package.py gmg-flex.zip
 ```
 
-## Environment Variables
-
-Create `.env.local`:
-
-```env
-NEXT_PUBLIC_API_URL=http://localhost:8000/api
-```
-
-For production, set this to your ngrok or Cloudflare Tunnel URL.
-
-## Deployment
-
-1. Push to GitHub
-2. Import to Vercel
-3. Set environment variable `NEXT_PUBLIC_API_URL` to your tunnel URL
-4. Deploy
-
-## Tunnel Setup
-
-### Using ngrok
-
-```bash
-# Install ngrok (if not installed)
-brew install ngrok
-
-# Configure with your account
-ngrok config add-authtoken YOUR_AUTHTOKEN
-
-# Start tunnel to local API
-ngrok http 8000
-```
-
-Set `NEXT_PUBLIC_API_URL` to the ngrok URL (e.g., `https://abc123.ngrok.io`).
-
-### Using Cloudflare Tunnel
-
-```bash
-# Install cloudflared
-brew install cloudflared
-
-# Login to Cloudflare
-cloudflared tunnel login
-
-# Create tunnel
-cloudflared tunnel create gmg-agent
-
-# Run tunnel
-cloudflared tunnel run gmg-agent
-```
-
-## Query Examples
-
-- "Find member Anand"
-- "Show me jobs"
-- "How many members?"
-- "Tell me about the community"
-
-## Refreshing the member index
-
-The source snapshot is intentionally refreshed outside the web request path. Load the credentials from `.env.local` and run:
-
-```bash
-python3 refresh_data.py
-```
-
-The API reads the refreshed `almashines_data.json` when it starts. The latest verified refresh produced 5,132 members and 36 jobs.
-
-## Ollama profiles
-
-The API accepts `auto`, `fast`, `balanced`, or `quality`. `fast` and `auto` prefer `qwen3:8b` for responsive general assistance, with `mistral:latest` as the fallback; `balanced` uses `gemma4:26b`; `quality` uses `gemma4:31b`. Override with `OLLAMA_MODEL` when needed. Exact member and job lookups bypass the LLM so factual directory answers do not depend on model memory.
-
-## Login providers
-
-LinkedIn is the only sign-in provider. LinkedIn federation uses LinkedIn OpenID Connect and requires `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET`, and `NEXT_PUBLIC_LINKEDIN_ENABLED=true`. Register the exact NextAuth callback URL in LinkedIn Developer Portal:
-
-```text
-https://YOUR_UI_DOMAIN/api/auth/callback/linkedin
-```
+The Azure runbook covers restoring the landing site, configuring the Flex app, and publishing private data. Keep credentials, membership exports, and personal data outside Git. [Azure runbook](https://github.com/abhikarode/gmg-agent/blob/codex/azure-release/infra/azure/README.md)
