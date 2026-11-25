@@ -53,6 +53,8 @@ roster_key = re.compile(r"[a-f0-9]{64}")
 desk_start = "/api/start?desk=flex"
 desk_route = "/api/desk"
 linkedin_desk_route = f"{desk_route}?from=linkedin"
+open_desk_script = f"location.replace({json.dumps(linkedin_desk_route)});"
+open_desk_script_hash = base64.b64encode(hashlib.sha256(open_desk_script.encode()).digest()).decode()
 landing_origin = "https://green-river-01309971e.5.azurestaticapps.net"
 cipher = desk_cipher(web.config["SECRET_KEY"])
 desk_css = (Path(__file__).parent / "desk.css").read_text(encoding="utf-8")
@@ -163,6 +165,7 @@ def callback():
     if not session.get("starting"):
         return sign_in_error(401, True, expired=True)
     use_desk = not classic_enabled or session.get("desk") is True
+    desk_cookie_issued = False
     try:
         token = oauth.linkedin.authorize_access_token()
         claims = oauth.linkedin.parse_id_token(token, nonce=None, leeway=60)
@@ -180,9 +183,21 @@ def callback():
                 response = desk_page(status=403, denied=True, linkedin_denial=True, login_email=email)
                 clear_desk_cookie(response)
                 return response
-            response = redirect(linkedin_desk_route, 303)
+            # Land on the Flex origin before navigating to the Desk. Send only
+            # the Desk cookie on the response that completes the OAuth callback.
+            response = make_response(
+                '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+                '<title>Opening the Community Desk</title>'
+                f'<script>{open_desk_script}</script></head>'
+                f'<body><noscript><a href="{linkedin_desk_route}">Open the Community Desk</a></noscript></body></html>'
+            )
+            response.headers["Content-Security-Policy"] = (
+                "default-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'; "
+                f"script-src 'sha256-{open_desk_script_hash}'"
+            )
             response.set_cookie(DESK_COOKIE, cipher.encrypt(json.dumps(identity).encode()).decode(),
                                 max_age=DESK_SESSION_AGE, secure=True, httponly=True, samesite="Lax", path="/")
+            desk_cookie_issued = True
             return response
         return handoff_page(identity)
     except MismatchingStateError:
@@ -193,6 +208,10 @@ def callback():
         return sign_in_error(503, use_desk)
     finally:
         session.clear()
+        if desk_cookie_issued:
+            # Defer the browser's OAuth cookie deletion to the same-origin Desk
+            # request. LinkedIn has already consumed this authorization code.
+            session.modified = False
 
 
 def handoff_page(identity):
@@ -252,6 +271,8 @@ def desk():
     try:
         if not member_key(identity):
             return desk_page(status=403, denied=True)
+        if request.method == "GET" and request.args.get("from") == "linkedin" and session:
+            session.clear()
         query = request.form.get("name", "").strip()
         if len(query) > 100:
             return desk_page(status=400, authorized=True, invalid_query=True)

@@ -26,7 +26,8 @@ test("LinkedIn sign-in through the Flex HTTP adapter", { timeout: 60_000 }, asyn
       browserTest.after(() => browser.close());
 
       const scenarios = [
-        { name: "approved", callback: 303 },
+        { name: "approved", callback: 200 },
+        { name: "last-cookie", callback: 200 },
         { name: "unmatched", callback: 403, message: /couldn’t match this address/ },
         { name: "expired", callback: 401, message: /sign-in attempt is no longer active/ },
         { name: "timeout", callback: 503, message: /sign-in service is temporarily unavailable/ },
@@ -47,7 +48,9 @@ test("LinkedIn sign-in through the Flex HTTP adapter", { timeout: 60_000 }, asyn
             assert.equal(callback.status(), scenario.callback);
             assert.equal((await callback.allHeaders())["cache-control"], "no-store");
 
-            if (scenario.callback === 303) {
+            if (scenario.callback === 200) {
+              const callbackCookies = await callback.headerValues("set-cookie");
+              assert.ok(callbackCookies.some((cookie) => cookie.startsWith("__Host-gmg-flex-desk=")));
               const target = `${desk}/api/desk?from=linkedin`;
               await page.waitForURL(target);
               await page.getByRole("button", { name: "Find member" }).waitFor();

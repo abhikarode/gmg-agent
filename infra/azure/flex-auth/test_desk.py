@@ -66,13 +66,15 @@ class FlexDeskTest(unittest.TestCase):
         with patch.object(flex, "relay_blob") as relay:
             response = self.callback()
             relay.assert_not_called()
-        self.assertEqual((response.status_code, response.location), (303, "/api/desk?from=linkedin"))
-        cookie = next(header for header in response.headers.getlist("Set-Cookie") if header.startswith(member_desk.DESK_COOKIE))
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b'location.replace("/api/desk?from=linkedin")', response.data)
+        cookie, = response.headers.getlist("Set-Cookie")
+        self.assertTrue(cookie.startswith(member_desk.DESK_COOKIE + "="))
         self.assertTrue(all(flag in cookie for flag in ("Secure", "HttpOnly", "SameSite=Lax")))
         self.assertNotIn("fixture-sub", cookie)
         with patch.object(flex, "lookup_member_key", return_value="fixture-member"), \
                 patch.object(flex, "exact_members", return_value=[{"name": "Kavya Deshmukh"}]) as search:
-            landing = self.get("/api/desk")
+            landing = self.get("/api/desk?from=linkedin")
             self.assertEqual(landing.status_code, 200)
             self.assertIn(b"Find member", landing.data)
             self.assertEqual(landing.headers["Cache-Control"], "no-store")
@@ -101,7 +103,7 @@ class FlexDeskTest(unittest.TestCase):
         with patch.object(flex, "exact_members") as search:
             self.assertEqual(self.callback(member=None).status_code, 403)
             self.assertEqual(self.get("/api/desk").status_code, 401)
-            self.assertEqual(self.callback().status_code, 303)
+            self.assertEqual(self.callback().status_code, 200)
             with patch.object(flex, "lookup_member_key", return_value=None):
                 self.assertEqual(self.get("/api/desk").status_code, 403)
                 self.assertEqual(self.post("/api/desk/full").status_code, 403)
@@ -182,7 +184,7 @@ class FlexDeskTest(unittest.TestCase):
                 jar.load(value)
             return jar
 
-        for audience, result in [(linkedin.client_id, 303), ("other-client", 401)]:
+        for audience, result in [(linkedin.client_id, 200), ("other-client", 401)]:
             with self.subTest(audience=audience):
                 started = visit("/api/start?desk=flex")
                 state = parse_qs(urlsplit(started.headers["Location"]).query)["state"][0]
@@ -210,11 +212,14 @@ class FlexDeskTest(unittest.TestCase):
                                      f"{oauth_cookie.key}={oauth_cookie.value}")
                     self.assertEqual(callback.status_code, result)
                     response_cookies = cookies(callback)
-                    if result == 303:
+                    if result == 200:
                         desk_cookie = response_cookies[member_desk.DESK_COOKIE]
-                        self.assertEqual(response_cookies[oauth_cookie.key].value, "")
+                        self.assertNotIn(oauth_cookie.key, response_cookies)
                         self.assertTrue(desk_cookie["secure"] and desk_cookie["httponly"])
-                        self.assertEqual(visit(callback.headers["Location"], f"{desk_cookie.key}={desk_cookie.value}").status_code, 200)
+                        header = f"{desk_cookie.key}={desk_cookie.value}; {oauth_cookie.key}={oauth_cookie.value}"
+                        desk = visit("/api/desk?from=linkedin", header)
+                        self.assertEqual(desk.status_code, 200)
+                        self.assertEqual(cookies(desk)[oauth_cookie.key].value, "")
                     else:
                         self.assertNotIn(member_desk.DESK_COOKIE, response_cookies)
 
@@ -240,7 +245,7 @@ class FlexDeskTest(unittest.TestCase):
                 patch.object(flex, "exact_members", return_value=[]), \
                 patch.dict(os.environ, {"GMG_FLEX_TOOLS_ENABLED": "1", "GMG_FLEX_PEOPLE_ENABLED": "1"}):
             callback = self.callback(mode=False)
-            self.assertEqual((callback.status_code, callback.location), (303, "/api/desk?from=linkedin"))
+            self.assertEqual(callback.status_code, 200)
             response = self.get("/api/desk")
             self.assertIn(b"Search by expertise", response.data)
             self.assertNotIn(b"/api/desk/full", response.data)
@@ -251,7 +256,7 @@ class FlexDeskTest(unittest.TestCase):
 
     @patch.object(flex, "classic_enabled", True)
     def test_full_desk_uses_the_existing_one_time_relay_when_reenabled(self):
-        self.assertEqual(self.callback().status_code, 303)
+        self.assertEqual(self.callback().status_code, 200)
         with patch.object(flex, "relay_blob") as relay, patch.object(flex, "lookup_member_key", return_value="fixture-member"):
             handoff = self.post("/api/desk/full")
             self.assertIn(f"{DESK_ORIGIN}/api/gmg/flex-session".encode(), handoff.data)
@@ -281,7 +286,7 @@ class FlexDeskTest(unittest.TestCase):
             path = f"/api/desk/{name}"
             self.assertEqual(self.get(path).status_code, 401)
             self.assertEqual(self.post(path, {}, "https://foreign.example").status_code, 403)
-        self.assertEqual(self.callback().status_code, 303)
+        self.assertEqual(self.callback().status_code, 200)
         with patch.object(flex, "lookup_member_key", return_value=None):
             self.assertEqual(self.get("/api/desk/expertise").status_code, 403)
             self.assertEqual(self.post("/api/desk/people", {"need": "Software engineering"}).status_code, 403)
@@ -289,7 +294,7 @@ class FlexDeskTest(unittest.TestCase):
     def test_tools_use_scoped_services_and_deployment_switch(self):
         import desk_tools
 
-        self.assertEqual(self.callback().status_code, 303)
+        self.assertEqual(self.callback().status_code, 200)
         with patch.object(flex, "lookup_member_key", return_value="fixture-member"), \
                 patch.object(flex, "exact_members", return_value=[]), \
                 patch.dict(os.environ, {"GMG_FLEX_TOOLS_ENABLED": "0"}):
@@ -335,7 +340,7 @@ class FlexDeskTest(unittest.TestCase):
             MemberMatch(name="Fixture Person", evidence="Software engineer", source="GMG directory",
                         linkedin="https://www.linkedin.com/in/fixture-member"),
         ])
-        self.assertEqual(self.callback().status_code, 303)
+        self.assertEqual(self.callback().status_code, 200)
         with patch.object(flex, "lookup_member_key", return_value="fixture-member"), \
                 patch.object(flex, "exact_members", return_value=[]), \
                 patch.dict(os.environ, {"GMG_FLEX_TOOLS_ENABLED": "1", "GMG_FLEX_PEOPLE_ENABLED": "0"}), \

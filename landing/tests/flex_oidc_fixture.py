@@ -92,7 +92,12 @@ def route(request):
         return WsgiResponse(status=302, headers={"Location": f"{target}?{urlencode({'state': state, 'code': scenario})}"})
     azure_request = func.HttpRequest(request.method, request.url, headers=dict(request.headers), body=request.get_data())
     response = handler(azure_request, None)
-    return WsgiResponse(response.get_body(), response.status_code, headers=response.headers.items())
+    result = WsgiResponse(response.get_body(), response.status_code, headers=response.headers.items())
+    if request.path == "/api/callback/linkedin" and request.args.get("code") == "last-cookie":
+        cookies = result.headers.getlist("Set-Cookie")
+        if cookies:
+            result.headers.set("Set-Cookie", cookies[-1])
+    return result
 
 
 class QuietHandler(WSGIRequestHandler):
