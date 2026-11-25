@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "checks": [
+    {
+      "id": "frontend-unit",
+      "command": ["node", "--experimental-strip-types", "--test", "tests/linkedin-access.test.mjs", "tests/directory-results.test.mjs"],
+      "required": true,
+      "timeout_seconds": 60
+    },
+    {
+      "id": "member-enrichment",
+      "command": ["python3", "-m", "unittest", "discover", "-s", "tests"],
+      "required": true,
+      "timeout_seconds": 60
+    },
+    {
+      "id": "flex-auth-unit",
+      "command": ["python3", "-m", "unittest", "discover", "-s", "infra/azure/flex-auth", "-p", "test_desk.py"],
+      "required": true,
+      "timeout_seconds": 60
+    },
+    {
+      "id": "flex-auth-browser",
+      "command": ["node", "--test", "landing/tests/flex-sign-in.test.mjs"],
+      "required": true,
+      "timeout_seconds": 90
+    },
+    {
+      "id": "lint",
+      "command": [
+        "npm",
+        "run",
+        "lint"
+      ],
+      "required": true,
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "build",
+      "command": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "required": true,
+      "timeout_seconds": 1200
+    }
+  ]
+}

@@ -1,0 +1,220 @@
+:root {
+  color-scheme: light;
+  --paper: #f6f0e4;
+  --ink: #261f16;
+  --rust: #9c341c;
+  --rust-dark: #732513;
+  --olive: #27392d;
+  --cream: #ffeed5;
+  --rule: #ded2bb;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: "Avenir Next", "Segoe UI", sans-serif;
+  line-height: 1.55;
+}
+
+[hidden] { display: none !important; }
+
+a { color: inherit; }
+
+a:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 5px;
+}
+
+.site-header, .page {
+  width: min(1200px, calc(100% - 5rem));
+  margin-inline: auto;
+}
+
+.site-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.25rem;
+  padding-block: .75rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+.site-home {
+  display: flex;
+  align-items: center;
+  gap: .65rem;
+  font-weight: 700;
+  text-decoration: none;
+  line-height: 1.2;
+}
+
+.site-home:hover span { text-decoration: underline; }
+
+.site-home img {
+  display: block;
+  width: 132px;
+  height: auto;
+}
+
+.header-link, .text-link {
+  font-weight: 650;
+  text-decoration-thickness: 1px;
+  text-underline-offset: .24em;
+}
+
+.page {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: clamp(2.5rem, 6vw, 6rem);
+  align-items: start;
+  padding-block: clamp(3rem, 8vw, 7.5rem);
+}
+
+.desk { min-width: 0; }
+
+.marathi {
+  margin: 0 0 1rem;
+  color: var(--rust);
+  font-weight: 700;
+  font-size: 1.3rem;
+}
+
+h1, h2, h3, .event-date strong {
+  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  font-weight: 500;
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(3.25rem, 6.5vw, 6.125rem);
+  letter-spacing: -.055em;
+  line-height: .99;
+}
+
+.intro {
+  max-width: 35ch;
+  font-size: clamp(1.05rem, 1.5vw, 1.2rem);
+  margin: 1.75rem 0 1.625rem;
+}
+
+.primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 1rem;
+  min-height: 3rem;
+  padding: .75rem 1rem;
+  background: var(--rust);
+  color: #fffaf1;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.primary:hover, .primary[aria-disabled="true"] { background: var(--rust-dark); }
+
+.primary[aria-disabled="true"] { cursor: wait; }
+
+.sign-in-status, .direct {
+  max-width: 42ch;
+  margin: .75rem 0 0;
+  font-size: .95rem;
+}
+
+.sign-in-status:empty { margin: 0; }
+
+.direct { display: inline-block; }
+
+.events {
+  min-width: 0;
+  padding: clamp(1.35rem, 3.75vw, 3.25rem);
+  background: var(--olive);
+  color: var(--cream);
+  border-top: 4px solid #dc9960;
+}
+
+.events h2 {
+  margin: 0 0 1.65rem;
+  font-size: clamp(2rem, 3.4vw, 3.125rem);
+  letter-spacing: -.03em;
+  line-height: 1.05;
+}
+
+.event {
+  display: grid;
+  grid-template-columns: 3rem 1fr;
+  column-gap: clamp(.9rem, 2.2vw, 1.6rem);
+  align-items: start;
+  padding-block: 1.45rem;
+  border-block: 1px solid #788171;
+}
+
+.event-date {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: .2rem;
+  line-height: 1;
+  color: #f6b778;
+}
+
+.event-date span, .event-type {
+  font-size: .82rem;
+  font-weight: 650;
+}
+
+.event-date strong { margin-block: .1rem; font-size: 2.6rem; }
+.event-date small { font-size: .75rem; }
+.event-type { margin: 0 0 .45rem; color: #f6b778; }
+
+.event h3 {
+  margin: 0 0 .55rem;
+  font-size: clamp(1.6rem, 2.5vw, 2.1rem);
+  line-height: 1.13;
+}
+
+.event-details > p:not(.event-type) { margin: .65rem 0 .85rem; }
+
+.news { margin-top: 1.5rem; }
+
+.news h3 {
+  margin: 0;
+  font-size: 1.4rem;
+}
+
+.news-list {
+  list-style: none;
+  margin: .75rem 0 0;
+  padding: 0;
+}
+
+.news-list li {
+  display: grid;
+  grid-template-columns: 4.4rem 1fr;
+  gap: .65rem;
+  align-items: baseline;
+  padding-block: .55rem;
+  border-bottom: 1px solid #788171;
+}
+
+.news-list time { color: #f6b778; font-size: .8rem; }
+.news-list span { overflow-wrap: anywhere; }
+
+.updates {
+  display: inline-block;
+  margin-top: .9rem;
+}
+
+@media (max-width: 800px) {
+  .site-header, .page { width: calc(100% - 3rem); }
+  .site-home img { width: 90px; }
+  .page { grid-template-columns: 1fr; gap: 2.4rem; }
+}
+
+@media (max-width: 380px) {
+  .site-header, .page { width: calc(100% - 2rem); }
+  .site-home img { width: 66px; }
+  h1 { font-size: clamp(2.45rem, 12vw, 3.25rem); }
+  .event { grid-template-columns: 2.65rem 1fr; }
+}

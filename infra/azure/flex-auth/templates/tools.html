@@ -1,0 +1,98 @@
+<section class="search" aria-labelledby="tool-title">
+  <h2 id="tool-title">{{ tool_title }}</h2>
+  {% if tool_error %}<p class="notice" role="alert">{{ tool_error }}</p>{% endif %}
+  {% if tool_notice %}<p class="notice" role="status">{{ tool_notice }}</p>{% endif %}
+  {% if tool == 'people' %}
+    <div class="people-composer">
+    <form id="people-search" method="post" action="/api/desk/people" data-pending="Finding members with relevant experience…">
+      <label for="people-need">What do you need help with? <span lang="mr">कशासाठी मदत हवी आहे?</span></label>
+      <textarea id="people-need" name="need" minlength="8" maxlength="600" rows="3" placeholder="I’m starting a business and need help with the books and taxes." required>{{ tool_query or '' }}</textarea>
+      <label for="people-location">Location <span class="tool-source">optional</span></label>
+      <div class="search-row">
+        <input id="people-location" name="place" list="people-locations" maxlength="90" placeholder="Anywhere" value="{{ people_place or '' }}">
+        <datalist id="people-locations"><option value="Bay Area"><option value="San Francisco"><option value="San Jose"><option value="Mountain View"><option value="San Ramon"><option value="Fremont"><option value="Palo Alto"><option value="Pleasanton"><option value="Mumbai"><option value="Pune"></datalist>
+        <button class="action" type="submit">Find matches</button>
+      </div>
+    </form>
+    <details class="examples" aria-label="Search examples"{% if not people_matches %} open{% endif %} hidden>
+      <summary>Try an example</summary>
+      <button type="button" data-need="Start up funding" data-place="Bay Area">Startup funding <span aria-hidden="true">↗</span></button>
+      <button type="button" data-need="I’m starting a company and need someone to help me get the books and taxes in order.">Startup finances <span aria-hidden="true">↗</span></button>
+      <button type="button" data-need="Artificial intelligence in Bay Area" data-place="Bay Area">Bay Area AI <span aria-hidden="true">↗</span></button>
+      <button type="button" lang="mr" data-need="माझ्या नव्या व्यवसायाचे हिशेब आणि कर व्यवस्थित करण्यासाठी अनुभवी व्यक्ती हवी आहे.">हिशेब आणि कर <span aria-hidden="true">↗</span></button>
+    </details>
+    </div>
+  {% elif tool == 'ask' %}
+    <form method="post" action="/api/desk/ask" data-pending="Finding an answer…">
+      <label for="gmg-question">Ask about the GMG community</label>
+      <textarea id="gmg-question" name="question" maxlength="2000" rows="3" required>{{ tool_query or '' }}</textarea>
+      <button class="action">Ask GMG</button>
+    </form>
+  {% elif tool == 'opportunities' %}
+    <form method="post" action="/api/desk/opportunities" data-pending="Looking for openings…">
+      <label for="job-query">Job title, company, or location</label>
+      <div class="search-row"><input id="job-query" name="query" type="search" maxlength="120" value="{{ tool_query or '' }}"><button class="action">Find openings</button></div>
+    </form>
+  {% elif expertise %}
+    <p>Select up to {{ expertise.max_topics }} topics to help members find you.</p>
+    {% if expertise.error %}<p role="alert">{{ expertise.error }}</p>{% endif %}
+    {% if expertise.saved %}<p role="status">Your expertise is saved.</p>{% endif %}
+    <form method="post" action="/api/desk/expertise" data-pending="Saving your expertise…" data-expertise-limit="{{ expertise.max_topics }}">
+      <label for="topic-filter">Search topics</label>
+      <input id="topic-filter" type="search" autocomplete="off">
+      <p data-selection role="status">{{ expertise.selected|length }} of {{ expertise.max_topics }} selected</p>
+      <div class="topic-groups">
+        {% for group, topics in expertise.catalog.items() %}
+        <details{% if expertise.selected|select('in', topics)|list %} open{% endif %}>
+          <summary>{{ group }}</summary>
+          {% for slug, label in topics.items() %}
+          <label class="topic"><input type="checkbox" name="topics" value="{{ slug }}"{% if slug in expertise.selected %} checked{% endif %}> {{ label }}</label>
+          {% endfor %}
+        </details>
+        {% endfor %}
+      </div>
+      <button class="action">Save expertise</button>
+    </form>
+  {% endif %}
+</section>
+{% if people_matches %}
+<section class="results" aria-labelledby="people-results">
+  <div class="result-header">
+    <h2 id="people-results">Suggested people</h2>
+    <div class="result-context">
+      <span class="match-source{% if tool_model %} is-model{% endif %}">{% if tool_model %}Matched with {{ tool_model }}{% else %}Matched using the GMG directory{% endif %}</span>
+      {% if people_matches.place %}<span class="tool-source">{{ people_matches.place }}</span>{% endif %}
+    </div>
+  </div>
+  {% if people_matches.members %}
+  <ul class="member-list">
+    {% for member in people_matches.members %}
+    <li>
+      <h3>{{ member.name }}</h3>
+      {% if member.summary and member.summary != member.evidence %}
+      <p>{{ member.summary }}{% if member.summarySource %} <span class="tool-source">· {{ member.summarySource }}</span>{% endif %}</p>
+      {% endif %}
+      {% if member.location %}<p class="tool-source">{{ member.location }}</p>{% endif %}
+      <div class="member-evidence">
+        <p><strong>Relevant experience</strong> {{ member.evidence }}</p>
+        <p class="tool-source">
+          {% if member.sourceUrl %}<a href="{{ member.sourceUrl }}" target="_blank" rel="noopener noreferrer">{{ member.source }}</a>{% else %}{{ member.source }}{% endif %}
+        </p>
+      </div>
+      {% if member.expertise %}<p class="member-topics">{{ member.expertise|join(' · ') }}</p>{% endif %}
+      {% if member.linkedin %}<a class="profile-link" href="{{ member.linkedin }}" target="_blank" rel="noopener noreferrer" aria-label="{{ member.name }} on LinkedIn">LinkedIn profile ↗</a>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="empty-state">No members matched this need. Try naming a skill or changing the location.</p>
+  {% endif %}
+</section>
+{% endif %}
+{% if tool_result %}
+<section class="results reply" aria-label="{{ 'Ask GMG answer' if tool == 'ask' else 'Opportunity results' }}">
+  {% if tool_model %}<p class="match-source is-model">Answered with {{ tool_model }}</p>{% endif %}
+  {{ tool_result|safe }}
+</section>
+{% endif %}
+{% if tool_engine %}<p role="status" class="tool-source">Preview inference status · {{ tool_engine }}</p>{% endif %}

@@ -1,0 +1,13 @@
+{
+  "globalHeaders": {
+    "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src https://gmg-agent-auth-flex-4dbcc4d1.azurewebsites.net https://gmg-agent-pilot.livelydune-5b390dd9.westus3.azurecontainerapps.io; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "X-Content-Type-Options": "nosniff",
+    "Cache-Control": "public, max-age=300"
+  },
+  "routes": [
+    { "route": "/landing.css", "headers": { "Cache-Control": "public, max-age=3600" } },
+    { "route": "/landing-flex-desk.js", "headers": { "Cache-Control": "public, max-age=3600" } },
+    { "route": "/garje-marathi-logo.png", "headers": { "Cache-Control": "public, max-age=86400" } }
+  ]
+}

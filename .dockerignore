@@ -1,0 +1,16 @@
+*
+!Dockerfile
+!requirements.txt
+!api.py
+!ai_agent.py
+!member_enrichment.py
+!people_match.py
+!directory_snapshot.py
+!azure_storage.py
+!inference_budget.py
+!hosted_inference.py
+!seed_local_directory.py
+!membership.py
+!expertise.py
+!expertise_catalog.json
+!whatsapp_pilot.py

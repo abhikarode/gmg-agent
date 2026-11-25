@@ -1,0 +1,85 @@
+name: gmg-local
+
+x-snapshot-environment: &snapshot-environment
+  GMG_BLOB_CONNECTION_STRING: "DefaultEndpointsProtocol=http;AccountName=gmglocal;AccountKey=${GMG_LOCAL_STORAGE_KEY:?Set a base64 Azurite key};BlobEndpoint=http://azurite:10000/gmglocal"
+  GMG_EXPERTISE_TABLE_CONNECTION_STRING: "DefaultEndpointsProtocol=http;AccountName=gmglocal;AccountKey=${GMG_LOCAL_STORAGE_KEY:?Set a base64 Azurite key};TableEndpoint=http://azurite:10002/gmglocal"
+
+services:
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite:3.35.0
+    command: azurite --blobHost 0.0.0.0 --tableHost 0.0.0.0 --disableProductStyleUrl --location /data
+    environment:
+      AZURITE_ACCOUNTS: "gmglocal:${GMG_LOCAL_STORAGE_KEY:?Set a base64 Azurite key}"
+    volumes:
+      - azurite:/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "for(const port of [10000,10002]){const socket=require('node:net').connect(port,'127.0.0.1');socket.on('connect',()=>socket.end());socket.on('error',()=>process.exit(1))}"]
+      interval: 3s
+      timeout: 3s
+      retries: 15
+
+  desk:
+    build:
+      dockerfile: Dockerfile.web
+      args:
+        NEXT_PUBLIC_LINKEDIN_ENABLED: ${NEXT_PUBLIC_LINKEDIN_ENABLED:-false}
+    image: gmg-local-web:dev
+    ports:
+      - "127.0.0.1:${GMG_LOCAL_PORT:-13097}:3000"
+    environment:
+      NEXTAUTH_URL: "http://localhost:${GMG_LOCAL_PORT:-13097}"
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:?Set a local NextAuth secret}
+      LINKEDIN_CLIENT_ID: ${LINKEDIN_CLIENT_ID:-}
+      LINKEDIN_CLIENT_SECRET: ${LINKEDIN_CLIENT_SECRET:-}
+      GMG_API_URL: http://127.0.0.1:8000/api
+      GMG_INTERNAL_TOKEN: ${GMG_INTERNAL_TOKEN:?Set a local internal API token}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/ready').then(r=>{ if(!r.ok) process.exit(1) }).catch(()=>process.exit(1))"]
+      interval: 3s
+      timeout: 3s
+      retries: 15
+
+  api:
+    build: .
+    image: gmg-local-api:dev
+    command: ["uvicorn", "api:app", "--host", "127.0.0.1", "--port", "8000"]
+    network_mode: service:desk
+    depends_on:
+      desk:
+        condition: service_started
+      azurite:
+        condition: service_healthy
+    environment:
+      <<: *snapshot-environment
+      OLLAMA_HOST: ${GMG_LOCAL_OLLAMA_HOST:-http://host.docker.internal:11434}
+      OLLAMA_MODEL: nemotron-3.5-lightning:latest
+      GMG_REQUIRE_API_TOKEN: "1"
+      GMG_INTERNAL_TOKEN: ${GMG_INTERNAL_TOKEN:?Set a local internal API token}
+      QUERY_LOG_PATH: /tmp/gmg-local-queries.jsonl
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/api/ready"]
+      interval: 5s
+      timeout: 15s
+      retries: 8
+
+  snapshot:
+    profiles: [tools]
+    image: gmg-local-api:dev
+    user: "${GMG_LOCAL_UID:-1000}:${GMG_LOCAL_GID:-1000}"
+    depends_on:
+      azurite:
+        condition: service_healthy
+    environment:
+      <<: *snapshot-environment
+      GMG_INTERNAL_TOKEN: ${GMG_INTERNAL_TOKEN:?Set a local internal API token}
+    entrypoint: ["python", "seed_local_directory.py"]
+    volumes:
+      - type: bind
+        source: ${GMG_LOCAL_EXPORTS:-./local-exports}
+        target: /input
+        read_only: true
+        bind:
+          create_host_path: false
+
+volumes:
+  azurite:

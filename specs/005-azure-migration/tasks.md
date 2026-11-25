@@ -1,0 +1,28 @@
+# GMG Agent Azure migration checklist
+
+The local rehearsal validated the Docker Compose services, Azurite snapshot rollback, and English and Marathi recommendations with Ollama. The November 20 AlmaShines refresh yielded 5,320 source members, up from 5,132. The local runtime serves 5,321 records after applying the directory additions, plus 36 previously captured jobs. Browser and authorization tests used a signed local session. The LinkedIn provider callback, Azure deployment, grant metering, and hosted model evaluation remain pending.
+
+| Order | Work | Evidence for approval |
+| --- | --- | --- |
+| 1 | Confirm the grant-bearing billing profile, pilot subscription, available credit, available Azure OpenAI quota, and region. Confirm who owns Azure administration, LinkedIn developer settings, and GMG DNS. Confirm the approved model processing geography and proposed $10 alert budget. | Read-only account and quota observations, current price quote, and named owners. Record grant balance and verification time. |
+| 2 | Identify the current live source and deployment assets. Review historical public secret fields, rotate any active values with their owners, and verify the existing app still signs in. Review applicable production dependency advisories before public ingress. | Published image source is pinned to a clean revision. Secret-scan output reports findings without values. Existing LinkedIn flow still works after required rotations. |
+| 3 | Record the current login, people, chat, jobs, response timing, and data versions. Build the minimized cloud snapshot from the same approved data. | No raw contact, demographic, or credential fields. Expected profile links, sources, strict locations, job formatting, and counts retained. Document any deliberate data changes. |
+| 4 | Add cloud-compatible Next.js and FastAPI images, shared-replica startup/readiness, and local Compose plus Azurite. Verify that the Next.js process can reach loopback FastAPI and that no proxy health probe invokes a model. | Reproducible local builds, protected API checks, cold boot timings, memory and concurrency numbers, and Blob rollback tests. |
+| 5 | Keep Ollama for the local stack and add the Foundry Nemotron adapter with application-wide quota using conditional Table writes. Preserve Pydantic validation and keep candidate IDs scoped to the current request. | Local HTTP contract tests, Azurite quota contention and rollover checks, input/output bounds, and cap exhaustion. Verify that only reserved calls reach the provider. |
+| 6 | Write Bicep for one Consumption app, Hot LRS Storage, model deployment, role assignments and budgets. Pin images and use secret references. Review the plan before resource creation. | Bicep validation and Azure what-if reports, cost estimate, authorization to proceed, and no unexpected fixed-cost resources. |
+| 7 | Deploy the small pilot on the Azure-generated hostname. Register its LinkedIn callback. Configure the private data projection, a small pilot allowlist, and a single eligible model. | Real approved sign-in, denied unapproved sign-in, anonymous 401 for each protected route, no public FastAPI port, one small metered model test, and evidence that the right billing profile covers it when metering posts. |
+| 8 | Evaluate Azure inference against Nemotron using 30–50 representative prompts in English, Marathi, and mixed language. Include exact lookups, niche needs, no matches, strict location constraints, and prompt-injection and data-minimization checks. | Measure correct evidence and top-three relevance, latency, timeouts, tokens, and cost per successful response. Require all identity, access, and data controls to pass and zero unsupported profile claims in the evaluation. Select the lowest measured cost among models that meet agreed quality. |
+| 9 | Rehearse cold start, ordinary concurrent use, a broken model, quota exhaustion, missing Blob permissions, corrupt data, and rollback. Run the repository verifier and signed-in desktop/mobile browser tests. | Versioned data and prior revision can be restored. Exact search, jobs, and known community answers still work with the model unavailable. The app works with the Mac and tunnel unavailable. |
+| 10 | Cut over to the approved hostname after TLS and real LinkedIn sign-in on that hostname pass. Keep the previous path available during the observation window. Compare real spend with the estimate and remove temporary resources when the new service is stable. | Cutover receipt, post-cutover checks, actual cost, rollback instructions, and confirmation that unused pilot resources stopped incurring cost. |
+
+## Initial browser and API cases
+
+- An approved member signs in on Azure. An unapproved LinkedIn member and an anonymous requester cannot read directory, chat, or statistics data.
+- Adit Karode appears once in Exact search, with his LinkedIn URL and the sourced Mora summary.
+- Abhi Karode appears for “Artificial Intelligence in Bay Area” when the reviewed GMG–MAAI evidence is present.
+- An explicit city or Bay Area filter excludes members without a matching location.
+- Typical English, Marathi, and mixed-language needs return real members with supporting evidence. A deliberately unsupported need returns a useful empty state.
+- “Who is the leader of GMG?”, “What can I do here?”, and “Who is a software engineer in GMG?” route correctly. Job listings render readable Markdown.
+- Pending requests stay guarded, profile previews are accessible by keyboard and touch, and no public route exposes the data file or backend.
+
+[Migration plan](plan.md) · [Scope and acceptance criteria](spec.md) · [Azure pilot package](../../infra/azure/README.md)

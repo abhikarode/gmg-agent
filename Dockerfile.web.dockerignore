@@ -1,0 +1,15 @@
+*
+!package.json
+!package-lock.json
+!next.config.ts
+!postcss.config.mjs
+!tsconfig.json
+!auth.ts
+!linkedin-access.ts
+!gmg-backend.ts
+!flex-auth.ts
+!directory-results.ts
+!app/
+!app/**
+!public/
+!public/**

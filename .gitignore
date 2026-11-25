@@ -1,0 +1,63 @@
+# Environment variables
+.env
+.env.*
+!.env.example
+local.settings.json
+*.pem
+*.pfx
+*.p12
+.azure/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environment
+venv/
+.venv/
+env/
+ENV/
+
+# Data files
+almashines_data.json
+bay_area_enrichment.json
+*.xlsx
+*.xls
+*.xlsm
+members.json
+members-*.json
+membership.json
+jobs.json
+private-aliases.json
+*.sqlite*
+query_logs.jsonl
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node
+node_modules/
+.next/
+out/
+build/
+
+# Next.js
+next-env.d.ts
+
+# Local agent/browser verification artifacts
+.codex/evidence/
+.playwright-mcp/
+tsconfig.tsbuildinfo
+*.zip
+*.mp4
+*.mov

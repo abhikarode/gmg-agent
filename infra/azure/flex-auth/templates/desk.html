@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="color-scheme" content="light dark">
+  <title>GMG Community Desk</title>
+  <link rel="icon" type="image/jpeg" href="{{ landing }}/gmg-favicon.jpg">
+  <style>{{ style|safe }}</style>
+</head>
+<body>
+  <a class="skip-link" href="#desk-content">Skip to content</a>
+  <header class="masthead">
+    <a class="brand" href="{{ search_route or '/api/desk' if authorized else landing }}" aria-label="Garje Marathi Global Community Desk home">
+      <img src="{{ landing }}/garje-marathi-logo.png" alt="" width="96" height="48">
+      <span>Garje Marathi Global</span>
+    </a>
+    {% if authorized %}
+    <form method="post" action="/api/desk/logout"><button class="quiet">Sign out</button></form>
+    {% endif %}
+  </header>
+  <main id="desk-content">
+    <div class="intro">
+      <p class="greeting" lang="mr">नमस्कार</p>
+      <h1>Community Desk</h1>
+    </div>
+    {% if tool_labels %}
+    {% set opening_messages = {
+      'people': 'Opening expertise search…',
+      'ask': 'Opening Ask GMG…',
+      'opportunities': 'Loading opportunities…',
+      'expertise': 'Loading your expertise…'
+    } %}
+    <nav class="tool-nav" aria-label="Community Desk tools">
+      <a href="{{ search_route }}" data-pending="Opening the member directory…"{% if not tool %} aria-current="page"{% endif %}>Find people</a>
+      {% for slug, title in tool_labels.items() %}
+      <a href="/api/desk/{{ slug }}" data-pending="{{ opening_messages[slug] }}"{% if tool == slug %} aria-current="page"{% endif %}>{{ title }}</a>
+      {% endfor %}
+    </nav>
+    {% endif %}
+    {% if signed_out %}
+      <section class="search" aria-labelledby="signed-out-title">
+        <h2 id="signed-out-title">You’re signed out</h2>
+        <div class="search-row">
+          <a class="action" href="{{ start }}">Continue with LinkedIn</a>
+          <a class="quiet" href="{{ landing }}">Back to GMG home</a>
+        </div>
+      </section>
+    {% elif sign_in_error %}
+      <section class="search" aria-labelledby="sign-in-error-title">
+        <h2 id="sign-in-error-title">Sign-in didn’t complete</h2>
+        <p class="entry-copy">{{ sign_in_error }}</p>
+        <a class="action" href="{{ retry }}">Try LinkedIn sign-in again</a>
+        <a class="quiet" href="{{ landing }}">Back to GMG home</a>
+      </section>
+    {% elif sign_in or denied %}
+      <section class="search">
+        {% if linkedin_denial and login_email %}
+          <p class="entry-copy">LinkedIn verified <strong>{{ login_email }}</strong>. GMG couldn’t match this address to an active membership.</p>
+        {% elif linkedin_denial %}
+          <p class="entry-copy">GMG requires a verified LinkedIn email. Check your primary email in LinkedIn settings and try again.</p>
+        {% else %}
+          <p class="entry-copy">{{ 'This LinkedIn account has no verified GMG membership.' if denied else 'Sign in with LinkedIn to open the member directory.' }}</p>
+        {% endif %}
+        <a class="action" href="{{ start }}">{{ 'Try LinkedIn sign-in again' if denied else 'Continue with LinkedIn' }}</a>
+      </section>
+    {% elif unavailable %}
+      <p role="alert">Member search is temporarily unavailable. <a href="/api/desk">Try again</a>.</p>
+    {% elif tool %}
+      {% include "tools.html" %}
+    {% else %}
+      <section class="search" aria-labelledby="member-search-title">
+        <h2 id="member-search-title">Find a member</h2>
+        <form method="post" action="{{ search_route or '/api/desk' }}" data-pending="Searching the member directory…">
+          <label for="member-name">Full name</label>
+          <div class="search-row">
+            <input id="member-name" name="name" type="search" autocomplete="off" value="{{ query or '' }}" maxlength="100" required>
+            <button class="action">Find member</button>
+          </div>
+        </form>
+        {% if invalid_query %}<p role="alert">Enter a name of up to 100 characters.</p>{% endif %}
+      </section>
+      {% if query %}
+      <section class="results" aria-labelledby="results-title">
+        <h2 id="results-title">Search results</h2>
+        {% if matches %}
+        <ul class="member-list">
+        {% for member in matches %}
+          <li>
+            <h3>{{ member.name }}</h3>
+            {% if member.role or member.company %}<p>{{ member.role }}{% if member.role and member.company %} · {% endif %}{{ member.company }}</p>{% endif %}
+            {% if member.location %}<p>{{ member.location }}</p>{% endif %}
+            {% if member.summary %}<p>{{ member.summary }}</p>{% endif %}
+            {% if member.linkedin %}<a href="{{ member.linkedin }}" target="_blank" rel="noopener noreferrer" aria-label="{{ member.name }} on LinkedIn">LinkedIn profile ↗</a>{% endif %}
+          </li>
+        {% endfor %}
+        </ul>
+        {% else %}
+          <p>No exact match for “{{ query }}”. Check the full name{% if people_route %} or <a href="{{ people_route }}">search by expertise</a>{% elif classic_enabled %} or try searching by expertise in the full Desk{% endif %}.</p>
+        {% endif %}
+      </section>
+      {% endif %}
+    {% endif %}
+    {% if authorized and not tool and (people_route or classic_enabled) %}
+    <aside class="full-desk">
+      <div><h2>{{ 'Find people by expertise' if tool_labels else 'Explore GMG' }}</h2><p>{{ 'Describe the experience or skills you need.' if tool_labels else 'Search by expertise, find opportunities, ask GMG, or update your profile.' }}</p></div>
+      {% if people_route %}
+      <div class="search-row">
+        <a class="quiet" href="{{ people_route }}" data-pending="Opening expertise search…">Search by expertise</a>
+        {% if classic_enabled %}<form method="post" action="/api/desk/full" data-pending="Opening the Classic Desk…"><button class="classic-desk">Classic Desk ↗</button></form>{% endif %}
+      </div>
+      {% else %}
+      <form method="post" action="/api/desk/full"><button class="quiet">Open full Desk ↗</button></form>
+      {% endif %}
+    </aside>
+    {% endif %}
+  </main>
+  {% if tools_script %}
+  <dialog class="request-mask" id="request-mask" aria-labelledby="request-label">
+    <div class="request-emblem" aria-hidden="true">
+      <span class="request-orbit"></span>
+      <span class="request-logo"><img src="{{ landing }}/garje-marathi-logo.png" alt="" width="80" height="40"></span>
+    </div>
+    <p class="request-label" id="request-label" tabindex="-1" autofocus></p>
+    <p class="request-recovery" hidden>This is taking longer than usual. <a href="{{ search_route }}">Return to the Desk</a></p>
+  </dialog>
+  <p class="request-status" id="request-status" role="status"></p>
+  <script>{{ tools_script|safe }}</script>
+  {% endif %}
+</body>
+</html>

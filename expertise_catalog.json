@@ -1,0 +1,85 @@
+{
+  "Software, data and AI": {
+    "applied-ai": "Artificial intelligence and machine learning",
+    "ai-governance": "AI governance and responsible AI",
+    "data-engineering": "Data engineering and databases",
+    "data-analytics": "Data science, analytics and business intelligence",
+    "software": "Software engineering",
+    "cloud": "Cloud infrastructure and DevOps",
+    "security": "Cybersecurity and privacy",
+    "enterprise-systems": "Enterprise systems, ERP and CRM",
+    "architecture": "IT architecture and consulting",
+    "semiconductor-software": "Embedded software and firmware"
+  },
+  "Engineering and the built environment": {
+    "hardware": "Hardware and semiconductors",
+    "robotics": "Robotics and automation",
+    "mechanical": "Mechanical engineering and industrial design",
+    "electrical": "Electrical and electronics engineering",
+    "automotive": "Automotive and mobility",
+    "aerospace": "Aerospace and aviation",
+    "chemical-materials": "Chemical engineering and materials science",
+    "manufacturing": "Manufacturing and production",
+    "quality": "Quality assurance, validation and testing",
+    "civil-construction": "Civil engineering and construction",
+    "built-design": "Architecture, interiors and urban planning",
+    "trades": "Skilled trades, installation and maintenance"
+  },
+  "Business and entrepreneurship": {
+    "strategy": "Business strategy and operations",
+    "product": "Product management",
+    "program": "Project and program management",
+    "founding": "Startup founding and fundraising",
+    "small-business": "Small business and franchising",
+    "sales": "Sales and business development",
+    "marketing": "Marketing, communications and branding",
+    "customer": "Customer service and customer success",
+    "retail": "Retail and e-commerce",
+    "supply-chain": "Procurement, supply chain and logistics",
+    "admin": "Office administration and executive support"
+  },
+  "Finance, law and property": {
+    "accounting": "Accounting, audit and tax",
+    "finance": "Corporate finance and financial planning",
+    "banking": "Banking, fintech and payments",
+    "investing": "Investing, venture capital and private equity",
+    "insurance": "Insurance, actuarial work and risk",
+    "law": "Legal practice and intellectual property",
+    "compliance": "Compliance and regulatory affairs",
+    "real-estate": "Real estate and property management"
+  },
+  "Health, science and the environment": {
+    "clinical-care": "Medicine, surgery and clinical care",
+    "allied-health": "Nursing, dentistry and allied health",
+    "mental-health": "Mental health, psychology and counseling",
+    "healthcare": "Health technology and healthcare operations",
+    "life-sciences": "Biotech, pharmaceuticals and clinical research",
+    "science": "Physical sciences and laboratory research",
+    "agriculture": "Agriculture, animal care and food systems",
+    "energy": "Energy, environment and sustainability"
+  },
+  "Education, careers and mentoring": {
+    "education": "Teaching, curriculum and academic research",
+    "workforce": "Training, coaching and workforce development",
+    "career": "Career development and transitions",
+    "student-mentoring": "Student mentoring and campus to corporate",
+    "professional-mentoring": "Mentoring professionals and entrepreneurs",
+    "leadership": "Leadership and people management",
+    "recruiting": "Human resources, recruiting and talent"
+  },
+  "Arts, media and service": {
+    "design": "Design, accessibility and user research",
+    "arts": "Visual and performing arts",
+    "media": "Writing, publishing, film and media production",
+    "languages": "Languages, translation and interpretation",
+    "hospitality": "Hospitality, travel and event management",
+    "culinary": "Food service and culinary arts",
+    "sports": "Sports, recreation and fitness"
+  },
+  "Public and community service": {
+    "public-sector": "Public policy, government and civic service",
+    "nonprofit": "Nonprofit and community leadership",
+    "social-services": "Social work and community services",
+    "public-safety": "Public safety and emergency management"
+  }
+}

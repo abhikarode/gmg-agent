@@ -1,0 +1,35 @@
+name: Refresh GMG NewsCorner landing page
+
+'on':
+  schedule:
+    - cron: '27 12 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gmg-public-landing
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 22
+      - name: Build a static snapshot from the public feed
+        run: |
+          npm ci --prefix landing --ignore-scripts
+          npm exec --prefix landing -- playwright install --with-deps --only-shell chromium
+          node landing/build.mjs "$RUNNER_TEMP/gmg-public-landing"
+      - name: Publish the snapshot to Azure Static Web Apps
+        env:
+          SWA_CLI_DEPLOYMENT_TOKEN: ${{ secrets.GMG_PUBLIC_LANDING_DEPLOYMENT_TOKEN }}
+        run: |
+          : "${SWA_CLI_DEPLOYMENT_TOKEN:?Missing the GMG landing deployment token}"
+          npx --yes @azure/static-web-apps-cli@2.1.0 deploy "$RUNNER_TEMP/gmg-public-landing" --env production --no-use-keychain
