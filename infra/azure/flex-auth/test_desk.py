@@ -109,6 +109,18 @@ class FlexDeskTest(unittest.TestCase):
                 self.assertEqual(self.post("/api/desk/full").status_code, 403)
             search.assert_not_called()
 
+    def test_post_linkedin_401_reports_missing_or_unreadable_session(self):
+        url = "/api/desk?from=linkedin"
+        missing = self.get(url)
+        self.assertEqual(missing.status_code, 401)
+        self.assertIn(b"GMG-S1", missing.data)
+        domain = urlsplit(ORIGIN).hostname
+        self.client.set_cookie(member_desk.DESK_COOKIE, "fixture-invalid-cookie", domain=domain)
+        invalid = self.get(url)
+        self.assertEqual(invalid.status_code, 401)
+        self.assertIn(b"GMG-S2", invalid.data)
+        self.assertNotIn(b"fixture-invalid-cookie", invalid.data)
+
     def test_linkedin_denial_identifies_which_email_check_failed(self):
         unmatched = self.callback(member=None)
         self.assertEqual(unmatched.status_code, 403)

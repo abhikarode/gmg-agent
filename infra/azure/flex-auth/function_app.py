@@ -262,11 +262,12 @@ def clear_desk_cookie(response):
 def desk():
     if request.method == "POST" and request.headers.get("Origin") != origin:
         return "Forbidden", 403
-    identity = desk_identity(cipher, request.cookies.get(DESK_COOKIE))
+    desk_cookie = request.cookies.get(DESK_COOKIE)
+    identity = desk_identity(cipher, desk_cookie)
     if not identity:
         if request.method == "GET" and request.args.get("from") == "linkedin":
             return desk_page(status=401, sign_in_error="GMG couldn’t open your session after sign-in. Try again in this browser tab.",
-                             retry=desk_start)
+                             sign_in_code="GMG-S2" if desk_cookie else "GMG-S1", retry=desk_start)
         return desk_page(status=401, sign_in=True)
     try:
         if not member_key(identity):

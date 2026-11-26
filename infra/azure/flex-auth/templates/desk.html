@@ -51,6 +51,7 @@
       <section class="search" aria-labelledby="sign-in-error-title">
         <h2 id="sign-in-error-title">Sign-in didn’t complete</h2>
         <p class="entry-copy">{{ sign_in_error }}</p>
+        {% if sign_in_code %}<p class="entry-copy">Support code <code>{{ sign_in_code }}</code></p>{% endif %}
         <a class="action" href="{{ retry }}">Try LinkedIn sign-in again</a>
         <a class="quiet" href="{{ landing }}">Back to GMG home</a>
       </section>
