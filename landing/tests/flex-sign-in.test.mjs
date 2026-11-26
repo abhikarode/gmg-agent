@@ -27,7 +27,7 @@ test("LinkedIn sign-in through the Flex HTTP adapter", { timeout: 60_000 }, asyn
 
       const scenarios = [
         { name: "approved", callback: 200 },
-        { name: "last-cookie", callback: 200 },
+        { name: "stale-cookie", callback: 200 },
         { name: "unmatched", callback: 403, message: /couldn’t match this address/ },
         { name: "expired", callback: 401, message: /sign-in attempt is no longer active/ },
         { name: "timeout", callback: 503, message: /sign-in service is temporarily unavailable/ },
@@ -38,9 +38,15 @@ test("LinkedIn sign-in through the Flex HTTP adapter", { timeout: 60_000 }, asyn
           const context = await browser.newContext({ ignoreHTTPSErrors: true });
           try {
             await context.addCookies([{ name: "fixture-scenario", value: scenario.name, url: issuer }]);
+            if (scenario.name === "stale-cookie") {
+              await context.addCookies([{ name: "__Host-gmg-flex-desk", value: "unreadable-old-session", url: desk, secure: true }]);
+            }
             const page = await context.newPage();
             page.setDefaultTimeout(12_000);
             await page.goto(issuer, { waitUntil: "domcontentloaded" });
+            const completion = scenario.callback === 200
+              ? page.waitForResponse((response) => new URL(response.url()).pathname === "/api/desk/complete")
+              : null;
             const [callback] = await Promise.all([
               page.waitForResponse((response) => new URL(response.url()).pathname === "/api/callback/linkedin"),
               page.getByRole("link", { name: "Continue with LinkedIn" }).click(),
@@ -50,20 +56,23 @@ test("LinkedIn sign-in through the Flex HTTP adapter", { timeout: 60_000 }, asyn
 
             if (scenario.callback === 200) {
               const callbackCookies = await callback.headerValues("set-cookie");
-              assert.ok(callbackCookies.some((cookie) => cookie.startsWith("__Host-gmg-flex-desk=")));
-              const target = `${desk}/api/desk?from=linkedin`;
+              assert.ok(!callbackCookies.some((cookie) => cookie.startsWith("__Host-gmg-flex-desk")));
+              const joined = await completion;
+              assert.equal(joined.status(), 303);
+              assert.equal(joined.request().method(), "POST");
+              const target = `${desk}/api/desk?from=linkedin&session=v2`;
               await page.waitForURL(target);
               await page.getByRole("button", { name: "Find member" }).waitFor();
               const cookies = await context.cookies(desk);
-              const session = cookies.find((cookie) => cookie.name === "__Host-gmg-flex-desk");
+              const session = cookies.find((cookie) => cookie.name === "__Host-gmg-flex-desk-v2");
               assert.ok(session?.secure && session.httpOnly && session.sameSite === "Lax");
               assert.ok(!cookies.some((cookie) => cookie.name === "__Host-gmg-flex-oauth"));
-              await context.clearCookies({ name: "__Host-gmg-flex-desk" });
+              await context.clearCookies({ name: "__Host-gmg-flex-desk-v2" });
               assert.equal((await page.reload({ waitUntil: "domcontentloaded" })).status(), 401);
               await page.getByText(/couldn’t open your session after sign-in/).waitFor();
             } else {
               await page.getByText(scenario.message).waitFor();
-              assert.ok(!((await context.cookies(desk)).some((cookie) => cookie.name === "__Host-gmg-flex-desk")));
+              assert.ok(!((await context.cookies(desk)).some((cookie) => cookie.name === "__Host-gmg-flex-desk-v2")));
             }
             assert.equal(await page.getByRole("link", { name: "Try LinkedIn sign-in again" }).count(), 1);
             assert.equal(await page.getByRole("button", { name: "Find member" }).count(), 0);

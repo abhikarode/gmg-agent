@@ -25,7 +25,7 @@ from joserfc.errors import JoseError
 from requests.exceptions import RequestException
 
 from azure_storage import runtime_identity, storage_endpoint
-from member_desk import DESK_COOKIE, DESK_SESSION_AGE, desk_cipher, desk_identity, exact_members
+from member_desk import DESK_COOKIE, DESK_SESSION_AGE, PREVIOUS_DESK_COOKIE, desk_cipher, desk_identity, exact_members
 from membership import expertise_key, lookup_member_key, normalize_email, roster_lookup_key
 
 web = Flask(__name__)
@@ -35,6 +35,7 @@ web.config.update(
     SESSION_COOKIE_SECURE=True,
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_REFRESH_EACH_REQUEST=False,
     PERMANENT_SESSION_LIFETIME=timedelta(minutes=12),
     MAX_CONTENT_LENGTH=1024,
 )
@@ -52,9 +53,9 @@ relay_code = re.compile(r"[A-Za-z0-9_-]{43}")
 roster_key = re.compile(r"[a-f0-9]{64}")
 desk_start = "/api/start?desk=flex"
 desk_route = "/api/desk"
-linkedin_desk_route = f"{desk_route}?from=linkedin"
-open_desk_script = f"location.replace({json.dumps(linkedin_desk_route)});"
-open_desk_script_hash = base64.b64encode(hashlib.sha256(open_desk_script.encode()).digest()).decode()
+linkedin_desk_route = f"{desk_route}?from=linkedin&session=v2"
+desk_complete_route = "/api/desk/complete"
+relay_lifetime = 120
 landing_origin = "https://green-river-01309971e.5.azurestaticapps.net"
 cipher = desk_cipher(web.config["SECRET_KEY"])
 desk_css = (Path(__file__).parent / "desk.css").read_text(encoding="utf-8")
@@ -88,6 +89,15 @@ def relay_storage():
 
 def relay_blob(code):
     return relay_storage().get_blob_client("relay/" + hashlib.sha256(code.encode()).hexdigest())
+
+
+def desk_relay_blob(code):
+    return relay_storage().get_blob_client("relay/desk/" + hashlib.sha256(code.encode()).hexdigest())
+
+
+def oauth_cookie_binding():
+    cookie = request.cookies.get(web.config["SESSION_COOKIE_NAME"])
+    return hashlib.sha256(cookie.encode()).hexdigest() if cookie and session.get("starting") else None
 
 
 @web.after_request
@@ -165,7 +175,7 @@ def callback():
     if not session.get("starting"):
         return sign_in_error(401, True, expired=True)
     use_desk = not classic_enabled or session.get("desk") is True
-    desk_cookie_issued = False
+    keep_oauth_cookie = False
     try:
         token = oauth.linkedin.authorize_access_token()
         claims = oauth.linkedin.parse_id_token(token, nonce=None, leeway=60)
@@ -183,21 +193,14 @@ def callback():
                 response = desk_page(status=403, denied=True, linkedin_denial=True, login_email=email)
                 clear_desk_cookie(response)
                 return response
-            # Land on the Flex origin before navigating to the Desk. Send only
-            # the Desk cookie on the response that completes the OAuth callback.
-            response = make_response(
-                '<!doctype html><html lang="en"><head><meta charset="utf-8">'
-                '<title>Opening the Community Desk</title>'
-                f'<script>{open_desk_script}</script></head>'
-                f'<body><noscript><a href="{linkedin_desk_route}">Open the Community Desk</a></noscript></body></html>'
-            )
-            response.headers["Content-Security-Policy"] = (
-                "default-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'; "
-                f"script-src 'sha256-{open_desk_script_hash}'"
-            )
-            response.set_cookie(DESK_COOKIE, cipher.encrypt(json.dumps(identity).encode()).decode(),
-                                max_age=DESK_SESSION_AGE, secure=True, httponly=True, samesite="Lax", path="/")
-            desk_cookie_issued = True
+            binding = oauth_cookie_binding()
+            if not binding:
+                return sign_in_error(401, True, expired=True)
+            code = token_urlsafe(32)
+            ticket = {"identity": identity, "binding": binding, "expires": int(time()) + relay_lifetime}
+            desk_relay_blob(code).upload_blob(json.dumps(ticket).encode(), overwrite=False)
+            response = handoff_form(desk_complete_route, "'self'", code)
+            keep_oauth_cookie = True
             return response
         return handoff_page(identity)
     except MismatchingStateError:
@@ -208,24 +211,59 @@ def callback():
         return sign_in_error(503, use_desk)
     finally:
         session.clear()
-        if desk_cookie_issued:
-            # Defer the browser's OAuth cookie deletion to the same-origin Desk
-            # request. LinkedIn has already consumed this authorization code.
+        if keep_oauth_cookie:
+            # The same browser needs its OAuth cookie to redeem the one-time
+            # ticket. LinkedIn has already consumed the authorization code.
             session.modified = False
 
 
 def handoff_page(identity):
     code = token_urlsafe(32)
-    relay_blob(code).upload_blob(json.dumps({**identity, "expires": int(time()) + 120}, ensure_ascii=False).encode(), overwrite=False)
+    relay_blob(code).upload_blob(json.dumps({**identity, "expires": int(time()) + relay_lifetime}, ensure_ascii=False).encode(), overwrite=False)
+    return handoff_form(f"{desk_origin}/api/gmg/flex-session", desk_origin, code)
+
+
+def handoff_form(action, form_source, code):
     response = make_response(f'''<!doctype html><html lang="en"><meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1"><title>Opening the GMG Community Desk</title>
     <main><p id="opening" role="status" hidden>Opening the Community Desk…</p>
-    <form id="desk" method="post" action="{desk_origin}/api/gmg/flex-session">
+    <form id="desk" method="post" action="{action}">
     <input type="hidden" name="code" value="{code}"><noscript><button>Open the Community Desk</button></noscript></form></main>
     <script src="/api/handoff-v1.js" defer></script></html>''')
-    response.headers["Content-Security-Policy"] = f"default-src 'none'; base-uri 'none'; frame-ancestors 'none'; script-src 'self'; form-action {desk_origin}"
+    response.headers["Content-Security-Policy"] = f"default-src 'none'; base-uri 'none'; frame-ancestors 'none'; script-src 'self'; form-action {form_source}"
     response.headers["Referrer-Policy"] = "origin"
     return response
+
+
+@web.post(desk_complete_route)
+def desk_complete():
+    if request.headers.get("Origin") != origin:
+        return "Forbidden", 403
+    code = request.form.get("code", "")
+    binding = oauth_cookie_binding()
+    if not binding or not relay_code.fullmatch(code):
+        return sign_in_error(401, True, expired=True)
+    try:
+        blob = desk_relay_blob(code)
+        data = blob.download_blob(offset=0, length=4097)
+        payload = data.readall()
+        if len(payload) > 4096:
+            return sign_in_error(401, True, expired=True)
+        ticket = json.loads(payload)
+        if ticket["expires"] <= time() or not compare_digest(ticket["binding"], binding):
+            return sign_in_error(401, True, expired=True)
+        identity = ticket["identity"]
+        blob.delete_blob(etag=data.properties.etag, match_condition=MatchConditions.IfNotModified)
+        if not member_key(identity):
+            return desk_page(status=403, denied=True)
+        response = redirect(linkedin_desk_route, 303)
+        response.set_cookie(DESK_COOKIE, cipher.encrypt(json.dumps(identity).encode()).decode(),
+                            max_age=DESK_SESSION_AGE, secure=True, httponly=True, samesite="Lax", path="/")
+        return response
+    except (ResourceNotFoundError, ResourceModifiedError, KeyError, TypeError, ValueError):
+        return sign_in_error(401, True, expired=True)
+    except (AzureError, OSError):
+        return sign_in_error(503, True)
 
 
 def member_key(identity):
@@ -255,24 +293,31 @@ def desk_page(status=200, **content):
 
 
 def clear_desk_cookie(response):
-    response.delete_cookie(DESK_COOKIE, secure=True, httponly=True, samesite="Lax", path="/")
+    for cookie in (DESK_COOKIE, PREVIOUS_DESK_COOKIE):
+        response.delete_cookie(cookie, secure=True, httponly=True, samesite="Lax", path="/")
+
+
+def current_desk_cookie():
+    return request.cookies.get(DESK_COOKIE) or request.cookies.get(PREVIOUS_DESK_COOKIE)
 
 
 @web.route(desk_route, methods=["GET", "POST"])
 def desk():
     if request.method == "POST" and request.headers.get("Origin") != origin:
         return "Forbidden", 403
-    desk_cookie = request.cookies.get(DESK_COOKIE)
+    after_linkedin = request.method == "GET" and request.args.get("from") == "linkedin"
+    completing_login = after_linkedin and request.args.get("session") == "v2"
+    desk_cookie = request.cookies.get(DESK_COOKIE) if completing_login else current_desk_cookie()
     identity = desk_identity(cipher, desk_cookie)
     if not identity:
-        if request.method == "GET" and request.args.get("from") == "linkedin":
+        if after_linkedin:
             return desk_page(status=401, sign_in_error="GMG couldn’t open your session after sign-in. Try again in this browser tab.",
                              sign_in_code="GMG-S2" if desk_cookie else "GMG-S1", retry=desk_start)
         return desk_page(status=401, sign_in=True)
     try:
         if not member_key(identity):
             return desk_page(status=403, denied=True)
-        if request.method == "GET" and request.args.get("from") == "linkedin" and session:
+        if completing_login and session:
             session.clear()
         query = request.form.get("name", "").strip()
         if len(query) > 100:
@@ -286,7 +331,7 @@ def desk():
 def full_desk():
     if request.headers.get("Origin") != origin:
         return "Forbidden", 403
-    identity = desk_identity(cipher, request.cookies.get(DESK_COOKIE))
+    identity = desk_identity(cipher, current_desk_cookie())
     try:
         if not member_key(identity):
             return desk_page(status=403, denied=True)
@@ -303,7 +348,7 @@ def full_desk():
 def desk_tool(tool):
     if request.method == "POST" and request.headers.get("Origin") != origin:
         return "Forbidden", 403
-    identity = desk_identity(cipher, request.cookies.get(DESK_COOKIE))
+    identity = desk_identity(cipher, current_desk_cookie())
     if not identity:
         return desk_page(status=401, sign_in=True)
     title = "Find people by expertise" if tool == "people" else tool_labels[tool]
@@ -393,7 +438,7 @@ def desk_logout():
 
 @web.get("/api/desk/signed-out")
 def desk_signed_out():
-    if desk_identity(cipher, request.cookies.get(DESK_COOKIE)):
+    if desk_identity(cipher, current_desk_cookie()):
         return redirect(desk_route, 303)
     return desk_page(signed_out=True)
 

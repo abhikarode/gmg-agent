@@ -36,6 +36,7 @@ os.environ.update(
 
 import function_app as flex
 from membership import roster_lookup_key
+from relay_fixture import RelayFixture
 
 handler = flex.app.get_functions()[0].get_user_function()
 linkedin = flex.oauth.linkedin
@@ -93,10 +94,8 @@ def route(request):
     azure_request = func.HttpRequest(request.method, request.url, headers=dict(request.headers), body=request.get_data())
     response = handler(azure_request, None)
     result = WsgiResponse(response.get_body(), response.status_code, headers=response.headers.items())
-    if request.path == "/api/callback/linkedin" and request.args.get("code") == "last-cookie":
-        cookies = result.headers.getlist("Set-Cookie")
-        if cookies:
-            result.headers.set("Set-Cookie", cookies[-1])
+    if request.path == "/api/callback/linkedin" and request.args.get("code") == "stale-cookie":
+        result.headers.remove("Set-Cookie")
     return result
 
 
@@ -130,5 +129,6 @@ if __name__ == "__main__":
         print(server.server_port, flush=True)
         with patch("requests.sessions.Session.send", side_effect=provider_response), \
                 patch.object(flex, "lookup_member_key", side_effect=lambda key, _: "fixture-member" if key == roster_key else None), \
+                patch.object(flex, "desk_relay_blob", RelayFixture().blob), \
                 patch.object(flex, "exact_members", return_value=[]):
             server.serve_forever()

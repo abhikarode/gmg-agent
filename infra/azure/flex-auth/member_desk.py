@@ -11,7 +11,8 @@ from cryptography.fernet import Fernet, InvalidToken
 from directory_snapshot import current_snapshot_digest, load_snapshot_version, snapshot_container
 from member_enrichment import linkedin_path, normalize, public_work_text
 
-DESK_COOKIE = "__Host-gmg-flex-desk"
+PREVIOUS_DESK_COOKIE = "__Host-gmg-flex-desk"
+DESK_COOKIE = "__Host-gmg-flex-desk-v2"
 DESK_SESSION_AGE = 8 * 60 * 60
 
 

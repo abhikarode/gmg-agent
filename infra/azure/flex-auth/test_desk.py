@@ -32,6 +32,7 @@ with patch.dict(os.environ, ENVIRONMENT):
     import member_desk
 from hosted_inference import MODEL_LABEL
 from membership import roster_lookup_key
+from relay_fixture import RelayFixture
 
 KEY = roster_lookup_key(EMAIL, ENVIRONMENT["GMG_FLEX_ROSTER_SECRET"])
 
@@ -39,6 +40,9 @@ KEY = roster_lookup_key(EMAIL, ENVIRONMENT["GMG_FLEX_ROSTER_SECRET"])
 class FlexDeskTest(unittest.TestCase):
     def setUp(self):
         self.client = flex.web.test_client()
+        relay_patch = patch.object(flex, "desk_relay_blob", RelayFixture().blob)
+        relay_patch.start()
+        self.addCleanup(relay_patch.stop)
 
     def get(self, path):
         return self.client.get(path, base_url=ORIGIN)
@@ -46,7 +50,7 @@ class FlexDeskTest(unittest.TestCase):
     def post(self, path, data=None, origin=ORIGIN):
         return self.client.post(path, data=data, base_url=ORIGIN, headers={"Origin": origin})
 
-    def callback(self, mode=True, member="fixture-member", verified=True):
+    def callback(self, mode=True, member="fixture-member", verified=True, complete=True):
         with self.client.session_transaction(base_url=ORIGIN) as auth:
             auth.update(starting=True, desk=mode)
         claims = {"sub": "fixture-sub", "name": "Fixture Name", "email": EMAIL, "email_verified": verified}
@@ -54,27 +58,39 @@ class FlexDeskTest(unittest.TestCase):
                 patch.object(flex.oauth.linkedin, "parse_id_token", return_value=claims), \
                 patch.object(flex, "lookup_member_key", return_value=member) as roster:
             response = self.get("/api/callback/linkedin")
-        if verified and (mode or not flex.classic_enabled):
-            roster.assert_called_once_with(KEY, ENVIRONMENT["GMG_FLEX_ROSTER_SECRET"])
-        else:
-            roster.assert_not_called()
+            if verified and (mode or not flex.classic_enabled):
+                roster.assert_called_once_with(KEY, ENVIRONMENT["GMG_FLEX_ROSTER_SECRET"])
+            else:
+                roster.assert_not_called()
+            if complete and response.status_code == 200 and b'/api/desk/complete' in response.data:
+                self.assertEqual(self.finish(response).status_code, 303)
         return response
+
+    def finish(self, response, origin=ORIGIN):
+        code = re.search(rb'name="code" value="([A-Za-z0-9_-]+)"', response.data)[1].decode()
+        return self.post("/api/desk/complete", {"code": code}, origin=origin)
 
     def test_authenticated_search_and_logout(self):
         self.assertEqual(self.get("/api/desk").status_code, 401)
         self.assertEqual(self.get("/api/callback/linkedin").status_code, 401)
         with patch.object(flex, "relay_blob") as relay:
-            response = self.callback()
+            response = self.callback(complete=False)
             relay.assert_not_called()
         self.assertEqual(response.status_code, 200)
-        self.assertIn(b'location.replace("/api/desk?from=linkedin")', response.data)
-        cookie, = response.headers.getlist("Set-Cookie")
+        self.assertIn(b'action="/api/desk/complete"', response.data)
+        self.assertNotIn("Set-Cookie", response.headers)
+        with patch.object(flex, "lookup_member_key", return_value="fixture-member"):
+            self.assertEqual(self.finish(response, origin="https://elsewhere.example").status_code, 403)
+            joined = self.finish(response)
+            self.assertEqual((joined.status_code, joined.location), (303, "/api/desk?from=linkedin&session=v2"))
+            self.assertEqual(self.finish(response).status_code, 401)
+        cookie, = joined.headers.getlist("Set-Cookie")
         self.assertTrue(cookie.startswith(member_desk.DESK_COOKIE + "="))
         self.assertTrue(all(flag in cookie for flag in ("Secure", "HttpOnly", "SameSite=Lax")))
         self.assertNotIn("fixture-sub", cookie)
         with patch.object(flex, "lookup_member_key", return_value="fixture-member"), \
                 patch.object(flex, "exact_members", return_value=[{"name": "Kavya Deshmukh"}]) as search:
-            landing = self.get("/api/desk?from=linkedin")
+            landing = self.get(joined.location)
             self.assertEqual(landing.status_code, 200)
             self.assertIn(b"Find member", landing.data)
             self.assertEqual(landing.headers["Cache-Control"], "no-store")
@@ -120,6 +136,33 @@ class FlexDeskTest(unittest.TestCase):
         self.assertEqual(invalid.status_code, 401)
         self.assertIn(b"GMG-S2", invalid.data)
         self.assertNotIn(b"fixture-invalid-cookie", invalid.data)
+
+    def test_handoff_binds_to_browser_and_preserves_existing_sessions(self):
+        response = self.callback(complete=False)
+        correct_browser = self.client
+        self.client = flex.web.test_client()
+        with self.client.session_transaction(base_url=ORIGIN) as auth:
+            auth.update(starting=True, unrelated=True)
+        self.assertEqual(self.finish(response).status_code, 401)
+        self.client = correct_browser
+        with patch.object(flex, "lookup_member_key", return_value="fixture-member"), \
+                patch.object(flex, "exact_members", return_value=[]):
+            old_cookie = flex.cipher.encrypt(json.dumps({"sub": "fixture", "rosterKey": KEY}).encode()).decode()
+            domain = urlsplit(ORIGIN).hostname
+            self.client.set_cookie(member_desk.PREVIOUS_DESK_COOKIE, old_cookie, domain=domain)
+            self.assertEqual(self.get("/api/desk").status_code, 200)
+            self.assertEqual(self.get("/api/desk?from=linkedin").status_code, 200)
+            self.assertEqual(self.get("/api/desk?from=linkedin&session=v2").status_code, 401)
+            self.assertEqual(self.finish(response).status_code, 303)
+            self.assertEqual(self.get("/api/desk?from=linkedin&session=v2").status_code, 200)
+            self.post("/api/desk/logout")
+            self.assertEqual(self.get("/api/desk").status_code, 401)
+
+    def test_expired_handoff_cannot_issue_a_session(self):
+        response = self.callback(complete=False)
+        with patch.object(flex, "time", return_value=time() + flex.relay_lifetime + 1):
+            self.assertEqual(self.finish(response).status_code, 401)
+        self.assertEqual(self.get("/api/desk").status_code, 401)
 
     def test_linkedin_denial_identifies_which_email_check_failed(self):
         unmatched = self.callback(member=None)
@@ -186,8 +229,12 @@ class FlexDeskTest(unittest.TestCase):
         }
         middleware = func.WsgiMiddleware(flex.web.wsgi_app)
 
-        def visit(path, cookie=""):
-            request = func.HttpRequest("GET", ORIGIN + path, headers={"Host": urlsplit(ORIGIN).netloc, "Cookie": cookie}, body=b"")
+        def visit(path, cookie="", code=None):
+            headers = {"Host": urlsplit(ORIGIN).netloc, "Cookie": cookie}
+            if code:
+                headers.update(Origin=ORIGIN, **{"Content-Type": "application/x-www-form-urlencoded"})
+            request = func.HttpRequest("POST" if code else "GET", ORIGIN + path, headers=headers,
+                                       body=urlencode({"code": code}).encode() if code else b"")
             return middleware.handle(request)
 
         def cookies(response):
@@ -225,11 +272,15 @@ class FlexDeskTest(unittest.TestCase):
                     self.assertEqual(callback.status_code, result)
                     response_cookies = cookies(callback)
                     if result == 200:
-                        desk_cookie = response_cookies[member_desk.DESK_COOKIE]
+                        self.assertFalse(response_cookies)
+                        code = re.search(rb'name="code" value="([A-Za-z0-9_-]+)"', callback.get_body())[1].decode()
+                        joined = visit("/api/desk/complete", f"{oauth_cookie.key}={oauth_cookie.value}", code=code)
+                        self.assertEqual(joined.status_code, 303)
+                        desk_cookie = cookies(joined)[member_desk.DESK_COOKIE]
                         self.assertNotIn(oauth_cookie.key, response_cookies)
                         self.assertTrue(desk_cookie["secure"] and desk_cookie["httponly"])
                         header = f"{desk_cookie.key}={desk_cookie.value}; {oauth_cookie.key}={oauth_cookie.value}"
-                        desk = visit("/api/desk?from=linkedin", header)
+                        desk = visit(joined.headers["Location"], header)
                         self.assertEqual(desk.status_code, 200)
                         self.assertEqual(cookies(desk)[oauth_cookie.key].value, "")
                     else:
