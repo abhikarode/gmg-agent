@@ -52,6 +52,38 @@ The LinkedIn export fills missing company, title, and profile links for one-to-o
 
 Try “Find members in the Bay Area”, “Find Bay Area members with marketing experience”, and “How many members are in the Bay Area?”
 
+### Preview AlmaShines LinkedIn URL changes
+
+Run the preview with Python 3.11 or newer. It reads four local UTF-8 JSON files offline and leaves them untouched.
+
+```sh
+python3 preview_directory_refresh.py \
+  --baseline baseline.json --candidate candidate.json \
+  --pilot-ids pilot.json --manual-additions manual.json
+```
+
+- `--baseline` and `--candidate` each take an export object with a `users` array. Each row needs a unique, nonblank string `unique_profile_id`. The optional `profile_url_linkedin` is a string or null.
+- `--pilot-ids` takes an object with a nonempty `member_ids` array of distinct baseline IDs. IDs are compared exactly.
+- `--manual-additions` takes an object with integer `version` 1 and a `members` array, which can be empty. Each entry needs a nonblank `name` and a `linkedin` profile URL whose canonical path is unique within the file.
+
+The JSON report always includes every count shown in this synthetic example.
+
+```json
+{
+  "schema_version": 1,
+  "pilot": {
+    "total": 25, "unchanged": 19, "gained": 1, "changed": 1,
+    "blank": 1, "malformed": 1, "shared": 1, "removed": 1
+  },
+  "outside_pilot": {"changed": 1, "added": 1, "removed": 1},
+  "manual": {"total": 3, "retained": 1, "matched": 1, "conflict": 1}
+}
+```
+
+Each pilot ID contributes exactly one outcome. A URL is shared when multiple candidate members use the same canonical path. Outside the pilot, the preview counts IDs and valid links that appear or disappear, plus other normalized link changes on retained IDs. Manual entries are retained, matched, or in conflict when zero, one, or several candidate members use the same path.
+
+Exit `0` prints the counts-only report to stdout, including when there are issues to review. Exit `2` leaves stdout empty and identifies the input type and error class on stderr.
+
 ## Rehearse the Azure migration locally
 
 The [Azure pilot package](infra/azure/README.md) contains the Bicep templates, offline validation steps, and the billing approval gate.
